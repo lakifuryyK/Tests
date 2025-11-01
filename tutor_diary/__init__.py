@@ -1,10 +1,14 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
+
+try:  # Flask-Migrate is optional in local setups
+    from flask_migrate import Migrate
+except ModuleNotFoundError:  # pragma: no cover - fallback for minimal installs
+    Migrate = None  # type: ignore[assignment]
 
 
 db = SQLAlchemy()
-migrate = Migrate()
+migrate = Migrate() if Migrate is not None else None
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -20,7 +24,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         app.config.update(test_config)
 
     db.init_app(app)
-    migrate.init_app(app, db)
+    if migrate is not None:
+        migrate.init_app(app, db)
 
     from . import models  # noqa: F401
     from .views import bp as diary_bp
@@ -43,15 +48,18 @@ def create_app(test_config: dict | None = None) -> Flask:
             db.session.add(teacher)
             db.session.commit()
 
-    with app.app_context():
+    def bootstrap_database() -> None:
+        """Ensure tables and the default admin account exist."""
         db.create_all()
         ensure_admin_account()
+
+    with app.app_context():
+        bootstrap_database()
 
     @app.cli.command("init-db")
     def init_db() -> None:
         """Initialize the database with the required tables."""
-        db.create_all()
-        ensure_admin_account()
+        bootstrap_database()
         print("Initialized the database.")
 
     return app
