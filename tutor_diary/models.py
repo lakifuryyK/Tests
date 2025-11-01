@@ -7,6 +7,25 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from . import db
 
 
+class Admin(db.Model):
+    __tablename__ = "admins"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    teachers = db.relationship(
+        "Teacher", backref="owner", lazy=True, cascade="all, delete-orphan"
+    )
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
+
+
 class SubjectSetting(db.Model):
     __tablename__ = "subject_settings"
 
@@ -26,6 +45,7 @@ class Student(db.Model):
     __tablename__ = "students"
 
     id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=True)
     full_name = db.Column(db.String(120), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -116,9 +136,13 @@ class Teacher(db.Model):
     __tablename__ = "teachers"
 
     id = db.Column(db.Integer, primary_key=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    max_students = db.Column(db.Integer, nullable=False, default=10)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    students = db.relationship("Student", backref="teacher", lazy=True)
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)

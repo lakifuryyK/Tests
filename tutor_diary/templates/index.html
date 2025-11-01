@@ -12,6 +12,16 @@
       <a class="btn btn--primary" href="{{ url_for('diary.manage_students') }}">Добавить ученика</a>
       <a class="btn btn--ghost" href="{{ url_for('diary.manage_sessions') }}">Запланировать урок</a>
     </div>
+    {% if student_limit is not none %}
+      <p class="muted">
+        Лимит учеников: {{ student_count }} из {{ student_limit }}
+        {% if limit_remaining > 0 %}
+          · свободно {{ limit_remaining }}
+        {% else %}
+          · лимит заполнен — создайте ученика позже или увеличьте лимит у администратора.
+        {% endif %}
+      </p>
+    {% endif %}
   </div>
   <div class="dashboard-intro__art" aria-hidden="true">
     <div class="orbit">

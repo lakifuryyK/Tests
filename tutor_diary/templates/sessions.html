@@ -8,6 +8,24 @@
       Создайте урок, чтобы он появился в календарях ученика и в вашем списке ближайших занятий.
     </p>
   </div>
+  {% if teacher_options %}
+    <form method="get" class="filter-bar">
+      <label>
+        <span class="sr-only">Преподаватель</span>
+        <select name="teacher_id" onchange="this.form.submit()">
+          <option value="">Все преподаватели</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+              {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if subject_focus %}
+        <input type="hidden" name="subject" value="{{ subject_focus }}" />
+      {% endif %}
+    </form>
+  {% endif %}
   {% if students %}
     <form method="post" class="form form--grid">
       <label class="form__field">
@@ -23,6 +41,7 @@
               {% if is_focus %}selected{% endif %}
             >
               {{ student.full_name }}{% if student.subject %} — {{ student.subject }}{% endif %}
+              {% if student.teacher %} ({{ student.teacher.username }}){% endif %}
             </option>
           {% endfor %}
         </select>
@@ -83,6 +102,24 @@
     <h2>История занятий</h2>
     <span class="chip">{{ sessions|length }} записей</span>
   </div>
+  {% if teacher_options %}
+    <form method="get" class="filter-bar">
+      <label>
+        <span class="sr-only">Фильтр по преподавателю</span>
+        <select name="teacher_id" onchange="this.form.submit()">
+          <option value="">Все преподаватели</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+              {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if subject_focus %}
+        <input type="hidden" name="subject" value="{{ subject_focus }}" />
+      {% endif %}
+    </form>
+  {% endif %}
   {% if sessions %}
     <div class="table-wrapper">
       <table class="table table--compact">

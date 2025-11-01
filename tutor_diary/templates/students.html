@@ -5,11 +5,27 @@
   <div>
     <h2>Добавить ученика</h2>
     <p class="muted">
-      Вы можете добавить не более 10 учеников. Передайте логин и пароль ученику, чтобы он получил
-      доступ к личному кабинету.
+      {% if is_admin %}
+        Вы можете назначить ученика любому преподавателю. Ограничение по количеству учеников для
+        каждого преподавателя устанавливается на административной панели.
+      {% else %}
+        Максимум учеников: {{ student_limit }}. Осталось мест: {{ limit_remaining }}.
+        Передайте логин и пароль ученику, чтобы он получил доступ к личному кабинету.
+      {% endif %}
     </p>
   </div>
   <form method="post" class="form form--grid">
+    {% if is_admin %}
+      <label class="form__field">
+        <span>Преподаватель</span>
+        <select name="assigned_teacher_id" required>
+          <option value="">Выберите преподавателя</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}">{{ teacher.username }} · лимит {{ teacher.max_students }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
     <label class="form__field">
       <span>ФИО</span>
       <input type="text" name="full_name" placeholder="Иванов Иван" required />
@@ -55,9 +71,28 @@
 <section class="panel">
   <div class="panel__header">
     <h2>Ученики</h2>
-    <span class="chip">{{ students|length }} из 10</span>
+    {% if max_students %}
+      <span class="chip">{{ current_student_total }} из {{ max_students }}</span>
+    {% else %}
+      <span class="chip">{{ current_student_total }}</span>
+    {% endif %}
   </div>
-  {% if students %}
+    {% if is_admin and teacher_options %}
+      <form method="get" class="filter-bar">
+        <label>
+          <span class="sr-only">Фильтр по преподавателю</span>
+          <select name="teacher_id" onchange="this.form.submit()">
+            <option value="">Все преподаватели</option>
+            {% for teacher in teacher_options %}
+              <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+                {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+      </form>
+    {% endif %}
+    {% if students %}
     <div class="student-grid">
       {% for student in students %}
         <article class="student-card">
@@ -79,6 +114,12 @@
               <dt>Логин</dt>
               <dd>{{ student.username }}</dd>
             </div>
+            {% if is_admin %}
+              <div>
+                <dt>Преподаватель</dt>
+                <dd>{{ student.teacher.username if student.teacher else 'Не назначен' }}</dd>
+              </div>
+            {% endif %}
             <div>
               <dt>Контакты</dt>
               <dd>{{ student.contact_info or '—' }}</dd>

@@ -6,6 +6,7 @@ from functools import wraps
 
 from flask import (
     Blueprint,
+    abort,
     flash,
     jsonify,
     redirect,
@@ -17,6 +18,7 @@ from flask import (
 
 from . import db
 from .models import (
+    Admin,
     Assignment,
     ChatMessage,
     LibraryMaterial,
@@ -31,6 +33,7 @@ from .models import (
 
 bp = Blueprint("diary", __name__)
 
+ADMIN_ROLE = "admin"
 TEACHER_ROLE = "teacher"
 STUDENT_ROLE = "student"
 
@@ -50,11 +53,11 @@ MONTH_NAMES = {
 }
 
 
-def login_required(role: str):
+def login_required(*roles: str):
     def decorator(view):
         @wraps(view)
         def wrapped(*args, **kwargs):
-            if session.get("role") != role:
+            if session.get("role") not in roles:
                 flash("Пожалуйста, войдите в систему для продолжения.", "warning")
                 return redirect(url_for("diary.login"))
             return view(*args, **kwargs)
@@ -64,21 +67,59 @@ def login_required(role: str):
     return decorator
 
 
+def current_teacher() -> Teacher | None:
+    teacher_id = session.get("teacher_id")
+    if not teacher_id:
+        return None
+    return Teacher.query.get(teacher_id)
+
+
+def ensure_teacher_access(student: Student) -> None:
+    role = session.get("role")
+    if role == ADMIN_ROLE:
+        return
+    teacher = current_teacher()
+    if not teacher or student.teacher_id != teacher.id:
+        abort(403)
+
+
 @bp.route("/")
 def index():
     role = session.get("role")
+    if role == ADMIN_ROLE:
+        return redirect(url_for("diary.admin_dashboard"))
     if role == STUDENT_ROLE:
         return redirect(url_for("diary.student_board"))
     if role != TEACHER_ROLE:
         return redirect(url_for("diary.login"))
 
+    teacher = current_teacher()
+    if not teacher:
+        session.clear()
+        flash("Сессия истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
+
     today = datetime.utcnow().date()
-    student_count = Student.query.count()
-    session_count = Session.query.count()
-    payment_total = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar()
-    assignments_open = Assignment.query.filter(Assignment.status != "completed").count()
+    student_query = Student.query.filter_by(teacher_id=teacher.id)
+    student_count = student_query.count()
+    session_query = (
+        Session.query.join(Student, Session.student_id == Student.id)
+        .filter(Student.teacher_id == teacher.id)
+    )
+    session_count = session_query.count()
+    payment_total = (
+        db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0))
+        .join(Student, Payment.student_id == Student.id)
+        .filter(Student.teacher_id == teacher.id)
+        .scalar()
+    )
+    assignments_open = (
+        Assignment.query.join(Student, Assignment.student_id == Student.id)
+        .filter(Student.teacher_id == teacher.id, Assignment.status != "completed")
+        .count()
+    )
     upcoming_sessions = (
-        Session.query.filter(Session.date >= today)
+        session_query.filter(Session.date >= today)
         .order_by(Session.date.asc(), Session.start_time.asc())
         .limit(5)
         .all()
@@ -107,7 +148,7 @@ def index():
     first_day = date(target_year, target_month, 1)
     last_day = date(target_year, target_month, monthrange(target_year, target_month)[1])
     calendar_sessions = (
-        Session.query.filter(Session.date >= first_day, Session.date <= last_day)
+        session_query.filter(Session.date >= first_day, Session.date <= last_day)
         .order_by(Session.date.asc(), Session.start_time.asc())
         .all()
     )
@@ -116,7 +157,9 @@ def index():
         sessions_by_day.setdefault(lesson.date, []).append(lesson)
 
     assignments_due_soon = (
-        Assignment.query.filter(
+        Assignment.query.join(Student, Assignment.student_id == Student.id)
+        .filter(
+            Student.teacher_id == teacher.id,
             Assignment.status != "completed",
             Assignment.due_date.isnot(None),
             Assignment.due_date >= today,
@@ -128,7 +171,7 @@ def index():
 
     thirty_days_ago = today - timedelta(days=30)
     students_needing_attention: list[dict[str, object]] = []
-    for student in Student.query.order_by(Student.full_name.asc()).all():
+    for student in student_query.order_by(Student.full_name.asc()).all():
         last_payment = (
             Payment.query.filter_by(student_id=student.id)
             .order_by(Payment.paid_on.desc())
@@ -146,21 +189,21 @@ def index():
 
     students_needing_attention = students_needing_attention[:5]
     sessions_today = (
-        Session.query.filter(Session.date == today)
+        session_query.filter(Session.date == today)
         .order_by(Session.start_time.asc())
         .all()
     )
 
     subject_counts = dict(
         db.session.query(Student.subject, db.func.count(Student.id))
-        .filter(Student.subject.isnot(None))
+        .filter(Student.teacher_id == teacher.id, Student.subject.isnot(None))
         .group_by(Student.subject)
         .all()
     )
     session_counts = dict(
         db.session.query(Student.subject, db.func.count(Session.id))
         .join(Student, Session.student_id == Student.id)
-        .filter(Student.subject.isnot(None))
+        .filter(Student.teacher_id == teacher.id, Student.subject.isnot(None))
         .group_by(Student.subject)
         .all()
     )
@@ -182,6 +225,7 @@ def index():
     library_spotlight = (
         LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(3).all()
     )
+    limit_remaining = max(teacher.max_students - student_count, 0)
 
     return render_template(
         "index.html",
@@ -205,12 +249,166 @@ def index():
         subject_overview=subject_overview,
         unmanaged_subjects=unmanaged_subjects,
         library_spotlight=library_spotlight,
+        student_limit=teacher.max_students,
+        limit_remaining=limit_remaining,
+    )
+
+
+@bp.route("/admin/dashboard")
+@login_required(ADMIN_ROLE)
+def admin_dashboard():
+    admin_id = session.get("admin_id")
+    admin_user = Admin.query.get(admin_id) if admin_id else None
+    if not admin_user:
+        session.clear()
+        flash("Сессия администратора истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
+
+    today = datetime.utcnow().date()
+    teacher_count = Teacher.query.count()
+    student_count = Student.query.count()
+    session_count = Session.query.count()
+    payment_total = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar()
+
+    teachers = Teacher.query.order_by(Teacher.created_at.desc()).all()
+    teacher_stats: list[dict[str, object]] = []
+    for teacher in teachers:
+        assigned_count = len(teacher.students)
+        teacher_stats.append(
+            {
+                "teacher": teacher,
+                "student_count": assigned_count,
+                "limit_remaining": max(teacher.max_students - assigned_count, 0),
+                "over_limit": assigned_count >= teacher.max_students,
+            }
+        )
+
+    sessions_next_week = (
+        Session.query.filter(
+            Session.date >= today,
+            Session.date <= today + timedelta(days=7),
+        )
+        .order_by(Session.date.asc(), Session.start_time.asc())
+        .limit(10)
+        .all()
+    )
+    unassigned_students = Student.query.filter(Student.teacher_id.is_(None)).all()
+
+    return render_template(
+        "admin_dashboard.html",
+        admin=admin_user,
+        teacher_count=teacher_count,
+        student_count=student_count,
+        session_count=session_count,
+        payment_total=payment_total,
+        teacher_stats=teacher_stats,
+        sessions_next_week=sessions_next_week,
+        unassigned_students=unassigned_students,
+    )
+
+
+@bp.route("/admin/teachers", methods=["GET", "POST"])
+@login_required(ADMIN_ROLE)
+def admin_manage_teachers():
+    admin_id = session.get("admin_id")
+    admin_user = Admin.query.get(admin_id) if admin_id else None
+    if not admin_user:
+        session.clear()
+        flash("Сессия администратора истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
+
+    if request.method == "POST":
+        action = request.form.get("action", "create")
+        if action == "create":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "").strip()
+            max_students_str = request.form.get("max_students", "").strip()
+            try:
+                max_students = int(max_students_str) if max_students_str else 10
+            except ValueError:
+                max_students = 10
+            if not username or not password:
+                flash("Укажите логин и пароль преподавателя.", "danger")
+            elif Teacher.query.filter_by(username=username).first():
+                flash("Преподаватель с таким логином уже существует.", "danger")
+            else:
+                teacher = Teacher(
+                    username=username,
+                    max_students=max(1, max_students),
+                    owner_id=admin_user.id,
+                )
+                teacher.set_password(password)
+                db.session.add(teacher)
+                db.session.commit()
+                flash("Преподаватель создан.", "success")
+        elif action == "update":
+            teacher_id_raw = request.form.get("teacher_id")
+            teacher = (
+                Teacher.query.get(int(teacher_id_raw))
+                if teacher_id_raw and teacher_id_raw.isdigit()
+                else None
+            )
+            if not teacher:
+                flash("Преподаватель не найден.", "danger")
+            else:
+                max_students_str = request.form.get("max_students", "").strip()
+                new_password = request.form.get("password", "").strip()
+                if max_students_str:
+                    try:
+                        new_limit = int(max_students_str)
+                    except ValueError:
+                        new_limit = teacher.max_students
+                    else:
+                        if new_limit < len(teacher.students):
+                            flash(
+                                "Нельзя установить лимит меньше текущего количества учеников.",
+                                "danger",
+                            )
+                            return redirect(url_for("diary.admin_manage_teachers"))
+                        teacher.max_students = max(1, new_limit)
+                if new_password:
+                    teacher.set_password(new_password)
+                db.session.commit()
+                flash("Настройки преподавателя обновлены.", "success")
+        elif action == "delete":
+            teacher_id_raw = request.form.get("teacher_id")
+            teacher = (
+                Teacher.query.get(int(teacher_id_raw))
+                if teacher_id_raw and teacher_id_raw.isdigit()
+                else None
+            )
+            if not teacher:
+                flash("Преподаватель не найден.", "danger")
+            else:
+                for student in teacher.students:
+                    student.teacher_id = None
+                db.session.delete(teacher)
+                db.session.commit()
+                flash("Преподаватель удалён. Его ученики остались в системе без назначения.", "info")
+        return redirect(url_for("diary.admin_manage_teachers"))
+
+    teachers = Teacher.query.order_by(Teacher.created_at.desc()).all()
+    teacher_stats = [
+        {
+            "teacher": teacher,
+            "student_count": len(teacher.students),
+            "limit": teacher.max_students,
+        }
+        for teacher in teachers
+    ]
+
+    return render_template(
+        "admin_teachers.html",
+        admin=admin_user,
+        teacher_stats=teacher_stats,
     )
 
 
 @bp.route("/students", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE)
+@login_required(TEACHER_ROLE, ADMIN_ROLE)
 def manage_students():
+    role = session.get("role")
+    teacher = current_teacher() if role == TEACHER_ROLE else None
     subject_settings = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
 
     if request.method == "POST":
@@ -229,9 +427,35 @@ def manage_students():
         contact_info = request.form.get("contact_info", "").strip() or None
         notes = request.form.get("notes", "").strip() or None
 
-        if Student.query.count() >= 10:
-            flash("Достигнут лимит: можно создать не более 10 учеников.", "danger")
+        assigned_teacher: Teacher | None
+        if role == TEACHER_ROLE:
+            assigned_teacher = teacher
+        else:
+            teacher_id_raw = request.form.get("assigned_teacher_id")
+            assigned_teacher = (
+                Teacher.query.get(int(teacher_id_raw))
+                if teacher_id_raw and teacher_id_raw.isdigit()
+                else None
+            )
+        if not assigned_teacher:
+            flash("Выберите преподавателя для ученика.", "danger")
             return redirect(url_for("diary.manage_students"))
+
+        current_count = Student.query.filter_by(teacher_id=assigned_teacher.id).count()
+        if current_count >= assigned_teacher.max_students:
+            flash(
+                f"Превышен лимит: преподаватель может вести до {assigned_teacher.max_students} учеников.",
+                "danger",
+            )
+            if role == ADMIN_ROLE:
+                return redirect(url_for("diary.manage_students", teacher_id=assigned_teacher.id))
+            return redirect(url_for("diary.manage_students"))
+
+        redirect_target = (
+            url_for("diary.manage_students", teacher_id=assigned_teacher.id)
+            if role == ADMIN_ROLE
+            else url_for("diary.manage_students")
+        )
 
         if not all([full_name, username, password]):
             flash("Укажите ФИО, логин и пароль ученика.", "danger")
@@ -244,16 +468,38 @@ def manage_students():
                 subject=subject,
                 contact_info=contact_info,
                 notes=notes,
+                teacher_id=assigned_teacher.id,
             )
             student.set_password(password)
             db.session.add(student)
             db.session.commit()
             flash("Ученик успешно добавлен.", "success")
-        return redirect(url_for("diary.manage_students"))
+        return redirect(redirect_target)
 
-    students = Student.query.order_by(Student.created_at.desc()).all()
+    selected_teacher_id = request.args.get("teacher_id", type=int)
+    if role == TEACHER_ROLE and teacher:
+        students_query = Student.query.filter_by(teacher_id=teacher.id)
+        max_students = teacher.max_students
+    elif selected_teacher_id:
+        students_query = Student.query.filter_by(teacher_id=selected_teacher_id)
+        selected_teacher = Teacher.query.get(selected_teacher_id)
+        max_students = selected_teacher.max_students if selected_teacher else None
+    else:
+        students_query = Student.query
+        max_students = None
+
+    students = students_query.order_by(Student.created_at.desc()).all()
     subject_palette = {subject.name: subject.color for subject in subject_settings}
     subject_defaults = {subject.name: subject.default_duration for subject in subject_settings}
+    teacher_options = Teacher.query.order_by(Teacher.username.asc()).all() if role == ADMIN_ROLE else []
+    selected_teacher = (
+        Teacher.query.get(selected_teacher_id) if selected_teacher_id else teacher
+    )
+    current_count = len(students)
+
+    limit_remaining = (
+        max(max_students - current_count, 0) if max_students is not None else None
+    )
 
     return render_template(
         "students.html",
@@ -261,12 +507,22 @@ def manage_students():
         subject_settings=subject_settings,
         subject_palette=subject_palette,
         subject_defaults=subject_defaults,
+        max_students=max_students,
+        teacher_options=teacher_options,
+        selected_teacher_id=selected_teacher_id,
+        is_admin=role == ADMIN_ROLE,
+        selected_teacher=selected_teacher,
+        current_student_total=current_count,
+        student_limit=max_students,
+        limit_remaining=limit_remaining,
     )
 
 
 @bp.route("/subjects", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE)
+@login_required(TEACHER_ROLE, ADMIN_ROLE)
 def manage_subjects():
+    role = session.get("role")
+    teacher = current_teacher() if role == TEACHER_ROLE else None
     subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
 
     if request.method == "POST":
@@ -326,22 +582,23 @@ def manage_subjects():
                 flash("Настройки обновлены.", "success")
         return redirect(url_for("diary.manage_subjects"))
 
-    student_counts = dict(
-        db.session.query(Student.subject, db.func.count(Student.id))
-        .filter(Student.subject.isnot(None))
-        .group_by(Student.subject)
-        .all()
-    )
+    student_counts_query = db.session.query(Student.subject, db.func.count(Student.id))
+    student_counts_query = student_counts_query.filter(Student.subject.isnot(None))
+    if teacher:
+        student_counts_query = student_counts_query.filter(Student.teacher_id == teacher.id)
+    student_counts_query = student_counts_query.group_by(Student.subject)
+    student_counts = dict(student_counts_query.all())
 
     return render_template(
         "subjects.html",
         subjects=subjects,
         student_counts=student_counts,
+        is_admin=role == ADMIN_ROLE,
     )
 
 
 @bp.route("/library", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE)
+@login_required(TEACHER_ROLE, ADMIN_ROLE)
 def manage_library():
     subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
 
@@ -417,9 +674,10 @@ def manage_library():
 
 
 @bp.route("/students/<int:student_id>", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE)
+@login_required(TEACHER_ROLE, ADMIN_ROLE)
 def student_detail(student_id: int):
     student = Student.query.get_or_404(student_id)
+    ensure_teacher_access(student)
 
     if request.method == "POST":
         action = request.form.get("action")
@@ -528,17 +786,27 @@ def student_detail(student_id: int):
 
 
 @bp.route("/sessions", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE)
+@login_required(TEACHER_ROLE, ADMIN_ROLE)
 def manage_sessions():
-    students = Student.query.order_by(Student.full_name.asc()).all()
+    role = session.get("role")
+    teacher = current_teacher() if role == TEACHER_ROLE else None
     subject_defaults = {
         subject.name: subject.default_duration
         for subject in SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
     }
     subject_focus = request.args.get("subject")
+    selected_teacher_id = request.args.get("teacher_id", type=int)
+
+    students_query = Student.query.order_by(Student.full_name.asc())
+    if teacher:
+        students_query = students_query.filter(Student.teacher_id == teacher.id)
+        selected_teacher_id = teacher.id
+    elif selected_teacher_id:
+        students_query = students_query.filter(Student.teacher_id == selected_teacher_id)
+    students = students_query.all()
 
     if request.method == "POST":
-        student_id = request.form.get("student_id")
+        student_id_raw = request.form.get("student_id", "")
         date_str = request.form.get("date")
         start_time_str = request.form.get("start_time")
         duration = request.form.get("duration_minutes")
@@ -546,9 +814,28 @@ def manage_sessions():
         homework = request.form.get("homework", "").strip() or None
         status = request.form.get("status", "scheduled")
 
-        if student_id and date_str and start_time_str and duration and topic:
-            session = Session(
-                student_id=int(student_id),
+        student_obj = (
+            Student.query.get(int(student_id_raw))
+            if student_id_raw and student_id_raw.isdigit()
+            else None
+        )
+        redirect_args: dict[str, int] = {}
+        redirect_teacher_id = selected_teacher_id
+        if role == ADMIN_ROLE and student_obj and student_obj.teacher_id:
+            redirect_teacher_id = student_obj.teacher_id
+        if role == ADMIN_ROLE and redirect_teacher_id:
+            redirect_args["teacher_id"] = redirect_teacher_id
+        redirect_target = url_for("diary.manage_sessions", **redirect_args)
+        if not student_obj:
+            flash("Выберите ученика.", "danger")
+            return redirect(redirect_target)
+        if teacher and student_obj.teacher_id != teacher.id:
+            flash("Нельзя планировать уроки для чужого ученика.", "danger")
+            return redirect(redirect_target)
+
+        if date_str and start_time_str and duration and topic:
+            session_entry = Session(
+                student_id=student_obj.id,
                 date=datetime.strptime(date_str, "%Y-%m-%d").date(),
                 start_time=datetime.strptime(start_time_str, "%H:%M").time(),
                 duration_minutes=int(duration),
@@ -556,36 +843,79 @@ def manage_sessions():
                 homework=homework,
                 status=status,
             )
-            db.session.add(session)
+            db.session.add(session_entry)
             db.session.commit()
             flash("Занятие сохранено.", "success")
-        return redirect(url_for("diary.manage_sessions"))
+        else:
+            flash("Заполните дату, время, длительность и тему занятия.", "danger")
+        return redirect(redirect_target)
 
-    sessions = Session.query.order_by(Session.date.desc(), Session.start_time.desc()).all()
+    sessions_query = Session.query.join(Student, Session.student_id == Student.id)
+    if teacher:
+        sessions_query = sessions_query.filter(Student.teacher_id == teacher.id)
+    elif selected_teacher_id:
+        sessions_query = sessions_query.filter(Student.teacher_id == selected_teacher_id)
+    sessions = sessions_query.order_by(Session.date.desc(), Session.start_time.desc()).all()
+
+    teacher_options = (
+        Teacher.query.order_by(Teacher.username.asc()).all() if role == ADMIN_ROLE else []
+    )
+
     return render_template(
         "sessions.html",
         sessions=sessions,
         students=students,
         subject_defaults=subject_defaults,
         subject_focus=subject_focus,
+        teacher_options=teacher_options,
+        selected_teacher_id=selected_teacher_id,
     )
 
 
 @bp.route("/payments", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE)
+@login_required(TEACHER_ROLE, ADMIN_ROLE)
 def manage_payments():
-    students = Student.query.order_by(Student.full_name.asc()).all()
+    role = session.get("role")
+    teacher = current_teacher() if role == TEACHER_ROLE else None
+    selected_teacher_id = request.args.get("teacher_id", type=int)
+
+    students_query = Student.query.order_by(Student.full_name.asc())
+    if teacher:
+        students_query = students_query.filter(Student.teacher_id == teacher.id)
+        selected_teacher_id = teacher.id
+    elif selected_teacher_id:
+        students_query = students_query.filter(Student.teacher_id == selected_teacher_id)
+    students = students_query.all()
 
     if request.method == "POST":
-        student_id = request.form.get("student_id")
+        student_id_raw = request.form.get("student_id", "")
         amount = request.form.get("amount")
         paid_on_str = request.form.get("paid_on")
         method = request.form.get("method", "").strip()
         notes = request.form.get("notes", "").strip() or None
 
-        if student_id and amount and paid_on_str and method:
+        student_obj = (
+            Student.query.get(int(student_id_raw))
+            if student_id_raw and student_id_raw.isdigit()
+            else None
+        )
+        redirect_args: dict[str, int] = {}
+        redirect_teacher_id = selected_teacher_id
+        if role == ADMIN_ROLE and student_obj and student_obj.teacher_id:
+            redirect_teacher_id = student_obj.teacher_id
+        if role == ADMIN_ROLE and redirect_teacher_id:
+            redirect_args["teacher_id"] = redirect_teacher_id
+        redirect_target = url_for("diary.manage_payments", **redirect_args)
+        if not student_obj:
+            flash("Выберите ученика.", "danger")
+            return redirect(redirect_target)
+        if teacher and student_obj.teacher_id != teacher.id:
+            flash("Нельзя управлять оплатами чужого ученика.", "danger")
+            return redirect(redirect_target)
+
+        if amount and paid_on_str and method:
             payment = Payment(
-                student_id=int(student_id),
+                student_id=student_obj.id,
                 amount=float(amount),
                 paid_on=datetime.strptime(paid_on_str, "%Y-%m-%d").date(),
                 method=method,
@@ -594,10 +924,28 @@ def manage_payments():
             db.session.add(payment)
             db.session.commit()
             flash("Оплата сохранена.", "success")
-        return redirect(url_for("diary.manage_payments"))
+        else:
+            flash("Заполните сумму, дату оплаты и способ.", "danger")
+        return redirect(redirect_target)
 
-    payments = Payment.query.order_by(Payment.paid_on.desc()).all()
-    return render_template("payments.html", payments=payments, students=students)
+    payments_query = Payment.query.join(Student, Payment.student_id == Student.id)
+    if teacher:
+        payments_query = payments_query.filter(Student.teacher_id == teacher.id)
+    elif selected_teacher_id:
+        payments_query = payments_query.filter(Student.teacher_id == selected_teacher_id)
+    payments = payments_query.order_by(Payment.paid_on.desc()).all()
+
+    teacher_options = (
+        Teacher.query.order_by(Teacher.username.asc()).all() if role == ADMIN_ROLE else []
+    )
+
+    return render_template(
+        "payments.html",
+        payments=payments,
+        students=students,
+        teacher_options=teacher_options,
+        selected_teacher_id=selected_teacher_id,
+    )
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -605,6 +953,14 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+
+        admin_user = Admin.query.filter_by(username=username).first()
+        if admin_user and admin_user.check_password(password):
+            session.clear()
+            session["role"] = ADMIN_ROLE
+            session["admin_id"] = admin_user.id
+            flash("Добро пожаловать, администратор ОбразОна!", "success")
+            return redirect(url_for("diary.admin_dashboard"))
 
         teacher = Teacher.query.filter_by(username=username).first()
         if teacher and teacher.check_password(password):
@@ -817,9 +1173,10 @@ def student_materials():
 
 
 @bp.route("/api/student/<int:student_id>/calendar")
-@login_required(TEACHER_ROLE)
+@login_required(TEACHER_ROLE, ADMIN_ROLE)
 def api_student_calendar(student_id: int):
     student = Student.query.get_or_404(student_id)
+    ensure_teacher_access(student)
     year = request.args.get("year", type=int)
     month = request.args.get("month", type=int)
     if not year or not month:

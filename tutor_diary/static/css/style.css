@@ -299,6 +299,7 @@ a {
 .card,
 .panel,
 .student-card,
+.teacher-card,
 .material-card {
   background: var(--bg-card);
   border-radius: 1.5rem;
@@ -487,6 +488,10 @@ textarea:focus {
   padding: 0.6rem 0.75rem;
 }
 
+.table__row--alert {
+  background: rgba(239, 68, 68, 0.08);
+}
+
 .timeline {
   list-style: none;
   padding: 0;
@@ -579,6 +584,24 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1.5rem;
+}
+
+.teacher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.teacher-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1rem;
+}
+
+.teacher-card {
+  display: grid;
+  gap: 1rem;
 }
 
 .student-card__header {
@@ -969,23 +992,27 @@ textarea:focus {
 
 .calendar {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 0.75rem;
 }
 
 .calendar--xl {
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .calendar--xl .calendar__cell,
 .panel--calendar .calendar__cell {
-  min-height: 160px;
+  min-height: 190px;
 }
 
 @media (min-width: 1200px) {
+  .calendar {
+    grid-template-columns: repeat(7, minmax(140px, 1fr));
+  }
+
   .calendar--xl .calendar__cell,
   .panel--calendar .calendar__cell {
-    min-height: 190px;
+    min-height: 230px;
   }
 }
 
@@ -1066,6 +1093,12 @@ textarea:focus {
   background: color-mix(in srgb, var(--chip-accent, var(--accent)) 20%, #ffffff 80%);
   color: var(--chip-accent, var(--accent));
   border: 1px solid color-mix(in srgb, var(--chip-accent, var(--accent)) 35%, transparent);
+}
+
+.chip--danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .chip--mini {

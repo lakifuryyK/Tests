@@ -39,18 +39,57 @@ def create_app(test_config: dict | None = None) -> Flask:
         return {"now": datetime.utcnow}
 
     def ensure_admin_account() -> None:
-        """Create the default teacher account if it doesn't exist."""
-        from .models import Teacher
+        """Create the default admin account if it doesn't exist."""
+        from sqlalchemy import text
 
-        if not Teacher.query.filter_by(username="admin").first():
-            teacher = Teacher(username="admin")
-            teacher.set_password("admin")
-            db.session.add(teacher)
+        from .models import Admin
+
+        admin = Admin.query.filter_by(username="admin").first()
+        if not admin:
+            admin = Admin(username="admin")
+            admin.set_password("admin")
+            db.session.add(admin)
+            db.session.commit()
+
+        db.session.execute(
+            text("UPDATE teachers SET owner_id = :admin_id WHERE owner_id IS NULL"),
+            {"admin_id": admin.id},
+        )
+        db.session.commit()
+
+    def ensure_schema_upgrades() -> None:
+        """Apply lightweight schema adjustments for legacy databases."""
+        from sqlalchemy import inspect, text
+
+        inspector = inspect(db.engine)
+        table_names = set(inspector.get_table_names())
+
+        if "students" in table_names:
+            student_columns = {column["name"] for column in inspector.get_columns("students")}
+            if "teacher_id" not in student_columns:
+                db.session.execute(text("ALTER TABLE students ADD COLUMN teacher_id INTEGER"))
+                db.session.commit()
+
+        if "teachers" in table_names:
+            teacher_columns = {column["name"] for column in inspector.get_columns("teachers")}
+            altered = False
+            if "max_students" not in teacher_columns:
+                db.session.execute(text("ALTER TABLE teachers ADD COLUMN max_students INTEGER"))
+                altered = True
+            if "owner_id" not in teacher_columns:
+                db.session.execute(text("ALTER TABLE teachers ADD COLUMN owner_id INTEGER"))
+                altered = True
+            if altered:
+                db.session.commit()
+            db.session.execute(
+                text("UPDATE teachers SET max_students = COALESCE(max_students, 10)")
+            )
             db.session.commit()
 
     def bootstrap_database() -> None:
         """Ensure tables and the default admin account exist."""
         db.create_all()
+        ensure_schema_upgrades()
         ensure_admin_account()
 
     with app.app_context():

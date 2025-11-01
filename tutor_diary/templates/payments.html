@@ -6,6 +6,21 @@
     <h2>Добавить оплату</h2>
     <p class="muted">Отслеживайте поступления по каждому ученику и способу оплаты.</p>
   </div>
+  {% if teacher_options %}
+    <form method="get" class="filter-bar">
+      <label>
+        <span class="sr-only">Фильтр по преподавателю</span>
+        <select name="teacher_id" onchange="this.form.submit()">
+          <option value="">Все преподаватели</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+              {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+  {% endif %}
   {% if students %}
     <form method="post" class="form form--grid">
       <label class="form__field">
@@ -13,7 +28,9 @@
         <select name="student_id" required>
           <option value="" disabled selected>Выберите ученика</option>
           {% for student in students %}
-            <option value="{{ student.id }}">{{ student.full_name }}</option>
+            <option value="{{ student.id }}">
+              {{ student.full_name }}{% if student.teacher %} ({{ student.teacher.username }}){% endif %}
+            </option>
           {% endfor %}
         </select>
       </label>
@@ -47,6 +64,21 @@
     <h2>История оплат</h2>
     <span class="chip">{{ payments|length }} операций</span>
   </div>
+  {% if teacher_options %}
+    <form method="get" class="filter-bar">
+      <label>
+        <span class="sr-only">Фильтр по преподавателю</span>
+        <select name="teacher_id" onchange="this.form.submit()">
+          <option value="">Все преподаватели</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+              {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+  {% endif %}
   {% if payments %}
     <div class="table-wrapper">
       <table class="table table--compact">
