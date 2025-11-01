@@ -101,7 +101,9 @@ def index():
 
     today = datetime.utcnow().date()
     student_query = Student.query.filter_by(teacher_id=teacher.id)
-    student_count = student_query.count()
+    students = student_query.order_by(Student.full_name.asc()).all()
+    student_count = len(students)
+    limit_remaining = max(teacher.max_students - student_count, 0)
     session_query = (
         Session.query.join(Student, Session.student_id == Student.id)
         .filter(Student.teacher_id == teacher.id)
@@ -171,7 +173,7 @@ def index():
 
     thirty_days_ago = today - timedelta(days=30)
     students_needing_attention: list[dict[str, object]] = []
-    for student in student_query.order_by(Student.full_name.asc()).all():
+    for student in students:
         last_payment = (
             Payment.query.filter_by(student_id=student.id)
             .order_by(Payment.paid_on.desc())
@@ -193,6 +195,226 @@ def index():
         .order_by(Session.start_time.asc())
         .all()
     )
+
+    sessions_next_week = (
+        session_query.filter(
+            Session.date >= today, Session.date <= today + timedelta(days=7)
+        )
+        .order_by(Session.date.asc(), Session.start_time.asc())
+        .all()
+    )
+    sessions_next_week_by_day: dict[date, list[Session]] = {}
+    for lesson in sessions_next_week:
+        sessions_next_week_by_day.setdefault(lesson.date, []).append(lesson)
+
+    students_with_planned_week = {lesson.student_id for lesson in sessions_next_week}
+    students_without_upcoming = [
+        student for student in students if student.id not in students_with_planned_week
+    ]
+
+    assignments_overdue = (
+        Assignment.query.join(Student, Assignment.student_id == Student.id)
+        .filter(
+            Student.teacher_id == teacher.id,
+            Assignment.status != "completed",
+            Assignment.due_date.isnot(None),
+            Assignment.due_date < today,
+        )
+        .order_by(Assignment.due_date.asc())
+        .all()
+    )
+
+    library_spotlight = (
+        LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(3).all()
+    )
+
+    def format_names(items: list[Student], limit: int = 3) -> str:
+        if not items:
+            return ""
+        names = [item.full_name for item in items[:limit]]
+        remaining = len(items) - len(names)
+        if remaining > 0:
+            names.append(f"+ ещё {remaining}")
+        return ", ".join(names)
+
+    def pluralize_lessons(amount: int) -> str:
+        if amount % 10 == 1 and amount % 100 != 11:
+            return "урок"
+        if 2 <= amount % 10 <= 4 and (amount % 100 < 10 or amount % 100 >= 20):
+            return "урока"
+        return "уроков"
+
+    now = datetime.utcnow()
+    current_hour = now.hour
+    if 5 <= current_hour < 12:
+        greeting = "Доброе утро"
+    elif 12 <= current_hour < 18:
+        greeting = "Добрый день"
+    else:
+        greeting = "Добрый вечер"
+
+    focus_tone = "info"
+    summary_message = "Неделя выглядит спокойно — продолжайте в выбранном ритме."
+    busiest_day = None
+    busiest_load = 0
+    if sessions_next_week_by_day:
+        busiest_day, busiest_sessions = max(
+            sessions_next_week_by_day.items(), key=lambda item: len(item[1])
+        )
+        busiest_load = len(busiest_sessions)
+        if busiest_load >= 5:
+            focus_tone = "warning"
+            summary_message = (
+                f"{busiest_day.strftime('%d.%m')} запланировано {busiest_load} {pluralize_lessons(busiest_load)} —"
+                " выделите время на отдых и подготовьте материалы заранее."
+            )
+        elif busiest_load >= 3:
+            summary_message = (
+                f"{busiest_day.strftime('%d.%m')} насыщенный день с {busiest_load} {pluralize_lessons(busiest_load)}."
+                " Сгруппируйте задания по предметам, чтобы оптимизировать подготовку."
+            )
+
+    if assignments_overdue:
+        focus_tone = "danger"
+        overdue_students = format_names([assignment.student for assignment in assignments_overdue])
+        summary_message = (
+            "Есть просроченные задания — начните с "
+            f"{overdue_students.split(',')[0].strip() if overdue_students else 'важных задач'}."
+        )
+    elif assignments_due_soon and focus_tone != "warning":
+        focus_tone = "info"
+        summary_message = (
+            f"На этой неделе {len(assignments_due_soon)} дедлайн(а)."
+            " Проверьте готовность домашнего задания у ключевых учеников."
+        )
+    elif students_needing_attention and focus_tone not in {"warning", "danger"}:
+        focus_tone = "warning"
+        summary_message = (
+            "Есть ученики без свежих оплат — напомните им о необходимости продления занятий."
+        )
+    elif students_without_upcoming and focus_tone not in {"warning", "danger"}:
+        summary_message = (
+            "Несколько учеников пока без уроков на неделе — поставьте слоты, чтобы сохранить темп."
+        )
+
+    focus_summary = {
+        "title": f"{greeting}, {teacher.username}!",
+        "message": summary_message,
+        "tone": focus_tone,
+    }
+
+    focus_recommendations: list[dict[str, object]] = []
+
+    busy_days = [
+        (day, len(items))
+        for day, items in sorted(sessions_next_week_by_day.items())
+        if len(items) >= 4
+    ]
+    if busy_days:
+        formatted_days = ", ".join(
+            f"{day.strftime('%d.%m')} — {count} {pluralize_lessons(count)}" for day, count in busy_days[:3]
+        )
+        focus_recommendations.append(
+            {
+                "icon": "⏱️",
+                "title": "Сбалансируйте насыщенные дни",
+                "description": (
+                    f"{formatted_days}. Продумайте буферное время и материалы,"
+                    " чтобы ученики сохраняли концентрацию."
+                ),
+                "tone": "warning",
+                "link": {"url": url_for("diary.manage_sessions"), "label": "Открыть расписание"},
+            }
+        )
+
+    if students_without_upcoming:
+        focus_recommendations.append(
+            {
+                "icon": "📅",
+                "title": "Запланируйте уроки для пауз",
+                "description": (
+                    "Без слота на ближайшие 7 дней: "
+                    f"{format_names(students_without_upcoming)}."
+                    " Свяжитесь и предложите время."
+                ),
+                "tone": "info",
+                "link": {"url": url_for("diary.manage_sessions"), "label": "Назначить урок"},
+            }
+        )
+
+    if assignments_overdue:
+        focus_recommendations.append(
+            {
+                "icon": "📝",
+                "title": "Верните задания в график",
+                "description": (
+                    "Просрочено: "
+                    f"{format_names([assignment.student for assignment in assignments_overdue])}."
+                    " Обсудите причины и уточните сроки."
+                ),
+                "tone": "danger",
+                "link": {
+                    "url": url_for(
+                        "diary.student_detail",
+                        student_id=assignments_overdue[0].student_id,
+                    ),
+                    "label": "Открыть карточку ученика",
+                },
+            }
+        )
+
+    if students_needing_attention:
+        focus_recommendations.append(
+            {
+                "icon": "💳",
+                "title": "Проконтролируйте оплаты",
+                "description": (
+                    "Ожидают напоминания: "
+                    f"{format_names([entry['student'] for entry in students_needing_attention])}."
+                    " Проверьте статус платежей."
+                ),
+                "tone": "warning",
+                "link": {
+                    "url": url_for("diary.manage_payments"),
+                    "label": "Перейти к оплатам",
+                },
+            }
+        )
+
+    if limit_remaining > 0:
+        focus_recommendations.append(
+            {
+                "icon": "🚀",
+                "title": "Можно принять новых учеников",
+                "description": (
+                    f"Доступно {limit_remaining} мест(а)."
+                    " Подготовьте приветственные материалы и чек-листы."
+                ),
+                "tone": "success",
+                "link": {
+                    "url": url_for("diary.manage_students"),
+                    "label": "Добавить ученика",
+                },
+            }
+        )
+
+    if library_spotlight:
+        focus_recommendations.append(
+            {
+                "icon": "📚",
+                "title": "Поделитесь материалами недели",
+                "description": (
+                    "В библиотеке появились свежие ресурсы —"
+                    " рекомендованный контент уже ждёт учеников."
+                ),
+                "tone": "info",
+                "link": {
+                    "url": url_for("diary.manage_library"),
+                    "label": "Открыть библиотеку",
+                },
+            }
+        )
+
 
     subject_counts = dict(
         db.session.query(Student.subject, db.func.count(Student.id))
@@ -222,11 +444,6 @@ def index():
         for name, count in subject_counts.items()
         if name and name not in configured_names
     ]
-    library_spotlight = (
-        LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(3).all()
-    )
-    limit_remaining = max(teacher.max_students - student_count, 0)
-
     return render_template(
         "index.html",
         student_count=student_count,
@@ -246,6 +463,8 @@ def index():
         assignments_due_soon=assignments_due_soon,
         students_needing_attention=students_needing_attention,
         sessions_today=sessions_today,
+        focus_summary=focus_summary,
+        focus_recommendations=focus_recommendations,
         subject_overview=subject_overview,
         unmanaged_subjects=unmanaged_subjects,
         library_spotlight=library_spotlight,

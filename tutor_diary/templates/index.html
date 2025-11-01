@@ -98,41 +98,70 @@
 <section class="panel panel--focus">
   <div class="panel__header">
     <h2>Фокус на неделю</h2>
-    <span class="chip chip--light">Помощник</span>
+    <span class="chip chip--light">ИИ-помощник</span>
   </div>
-  <h3>Сегодня</h3>
-  {% if sessions_today %}
-    <ul class="stack stack--mini">
-      {% for lesson in sessions_today %}
-        <li class="stack__item">
-          <div class="stack__title">{{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.student.full_name }}</div>
-          <p class="stack__meta">{{ lesson.topic }}</p>
-          <a class="link" href="{{ url_for('diary.student_detail', student_id=lesson.student_id) }}">Карточка ученика</a>
-        </li>
+
+  <div class="assistant assistant--{{ focus_summary.tone }}">
+    <div class="assistant__avatar" aria-hidden="true">🤖</div>
+    <div class="assistant__content">
+      <h3>{{ focus_summary.title }}</h3>
+      <p>{{ focus_summary.message }}</p>
+    </div>
+  </div>
+
+  {% if focus_recommendations %}
+    <div class="assistant-grid">
+      {% for item in focus_recommendations %}
+        <article class="assistant-card assistant-card--{{ item.tone }}">
+          <div class="assistant-card__icon" aria-hidden="true">{{ item.icon }}</div>
+          <div class="assistant-card__body">
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.description }}</p>
+            {% if item.link %}
+              <a class="link" href="{{ item.link.url }}">{{ item.link.label }}</a>
+            {% endif %}
+          </div>
+        </article>
       {% endfor %}
-    </ul>
-  {% else %}
-    <p class="muted">Сегодня занятий нет — можно подготовить материалы.</p>
+    </div>
   {% endif %}
 
-  <div class="panel__footer">
-    <h3>Дедлайны на 7 дней</h3>
-    {% if assignments_due_soon %}
-      <ul class="stack stack--mini">
-        {% for assignment in assignments_due_soon %}
-          <li class="stack__item {% if assignment.status == 'completed' %}stack__item--done{% endif %}">
-            <div class="stack__title">{{ assignment.title }}</div>
-            <p class="stack__meta">
-              До {{ assignment.due_date.strftime('%d.%m') }} · {{ assignment.student.full_name }}
-            </p>
-            {% if assignment.description %}<p class="stack__text">{{ assignment.description }}</p>{% endif %}
-            <a class="link" href="{{ url_for('diary.student_detail', student_id=assignment.student_id) }}">Перейти к ученику</a>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="muted">Все задания под контролем — новых дедлайнов на неделе нет.</p>
-    {% endif %}
+  <div class="assistant-columns">
+    <div class="assistant-column">
+      <h3>Сегодня</h3>
+      {% if sessions_today %}
+        <ul class="stack stack--mini">
+          {% for lesson in sessions_today %}
+            <li class="stack__item">
+              <div class="stack__title">{{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.student.full_name }}</div>
+              <p class="stack__meta">{{ lesson.topic }}</p>
+              <a class="link" href="{{ url_for('diary.student_detail', student_id=lesson.student_id) }}">Карточка ученика</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Сегодня занятий нет — можно подготовить материалы.</p>
+      {% endif %}
+    </div>
+    <div class="assistant-column">
+      <h3>Дедлайны на 7 дней</h3>
+      {% if assignments_due_soon %}
+        <ul class="stack stack--mini">
+          {% for assignment in assignments_due_soon %}
+            <li class="stack__item {% if assignment.status == 'completed' %}stack__item--done{% endif %}">
+              <div class="stack__title">{{ assignment.title }}</div>
+              <p class="stack__meta">
+                До {{ assignment.due_date.strftime('%d.%m') }} · {{ assignment.student.full_name }}
+              </p>
+              {% if assignment.description %}<p class="stack__text">{{ assignment.description }}</p>{% endif %}
+              <a class="link" href="{{ url_for('diary.student_detail', student_id=assignment.student_id) }}">Перейти к ученику</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Все задания под контролем — новых дедлайнов на неделе нет.</p>
+      {% endif %}
+    </div>
   </div>
 </section>
 

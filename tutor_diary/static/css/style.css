@@ -291,7 +291,9 @@ a {
 }
 
 .panel--focus {
-  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .card,
@@ -304,6 +306,10 @@ a {
   padding: 1.75rem;
   border: 1px solid var(--border);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.panel {
+  margin-bottom: 2.5rem;
 }
 
 .card--gradient {
@@ -334,6 +340,117 @@ a {
   margin-top: 1.5rem;
   padding-top: 1.25rem;
   border-top: 1px solid var(--border);
+}
+
+.assistant {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  padding: 1.35rem 1.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--border);
+  background: #f9fafb;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.1);
+}
+
+.assistant--info {
+  border-color: rgba(99, 102, 241, 0.25);
+  background: #eef2ff;
+}
+
+.assistant--warning {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: #fff7ed;
+}
+
+.assistant--danger {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: #fef2f2;
+}
+
+.assistant--success {
+  border-color: rgba(22, 163, 74, 0.3);
+  background: #ecfdf5;
+}
+
+.assistant__avatar {
+  font-size: 2.2rem;
+  line-height: 1;
+  filter: drop-shadow(0 8px 18px rgba(99, 102, 241, 0.35));
+}
+
+.assistant__content h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+}
+
+.assistant__content p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.assistant-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.assistant-card {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.3rem 1.4rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.assistant-card--info {
+  border-color: rgba(99, 102, 241, 0.25);
+  background: #eef2ff;
+}
+
+.assistant-card--warning {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: #fff7ed;
+}
+
+.assistant-card--danger {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: #fef2f2;
+}
+
+.assistant-card--success {
+  border-color: rgba(22, 163, 74, 0.3);
+  background: #ecfdf5;
+}
+
+.assistant-card__icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.assistant-card__body h4 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+.assistant-card__body p {
+  margin: 0 0 0.5rem;
+  color: var(--text-muted);
+}
+
+.assistant-columns {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.assistant-column h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
 }
 
 .panel--subject-note {
