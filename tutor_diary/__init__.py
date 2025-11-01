@@ -43,8 +43,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             db.session.add(teacher)
             db.session.commit()
 
-    @app.before_first_request
-    def bootstrap() -> None:
+    with app.app_context():
         db.create_all()
         ensure_admin_account()
 
