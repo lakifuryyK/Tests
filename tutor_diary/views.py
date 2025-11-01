@@ -16,7 +16,17 @@ from flask import (
 )
 
 from . import db
-from .models import Assignment, ChatMessage, Material, Payment, Session, Student, Teacher
+from .models import (
+    Assignment,
+    ChatMessage,
+    LibraryMaterial,
+    Material,
+    Payment,
+    Session,
+    Student,
+    SubjectSetting,
+    Teacher,
+)
 
 
 bp = Blueprint("diary", __name__)
@@ -141,6 +151,38 @@ def index():
         .all()
     )
 
+    subject_counts = dict(
+        db.session.query(Student.subject, db.func.count(Student.id))
+        .filter(Student.subject.isnot(None))
+        .group_by(Student.subject)
+        .all()
+    )
+    session_counts = dict(
+        db.session.query(Student.subject, db.func.count(Session.id))
+        .join(Student, Session.student_id == Student.id)
+        .filter(Student.subject.isnot(None))
+        .group_by(Student.subject)
+        .all()
+    )
+    configured_subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+    configured_names = {subject.name for subject in configured_subjects}
+    subject_overview = [
+        {
+            "setting": subject,
+            "students": subject_counts.get(subject.name, 0),
+            "sessions": session_counts.get(subject.name, 0),
+        }
+        for subject in configured_subjects
+    ]
+    unmanaged_subjects = [
+        {"name": name, "students": count}
+        for name, count in subject_counts.items()
+        if name and name not in configured_names
+    ]
+    library_spotlight = (
+        LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(3).all()
+    )
+
     return render_template(
         "index.html",
         student_count=student_count,
@@ -160,17 +202,30 @@ def index():
         assignments_due_soon=assignments_due_soon,
         students_needing_attention=students_needing_attention,
         sessions_today=sessions_today,
+        subject_overview=subject_overview,
+        unmanaged_subjects=unmanaged_subjects,
+        library_spotlight=library_spotlight,
     )
 
 
 @bp.route("/students", methods=["GET", "POST"])
 @login_required(TEACHER_ROLE)
 def manage_students():
+    subject_settings = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+
     if request.method == "POST":
         full_name = request.form.get("full_name", "").strip()
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
-        subject = request.form.get("subject", "").strip() or None
+        subject_choice = request.form.get("subject_choice")
+        subject_custom = request.form.get("subject_custom", "").strip() or None
+        subject = None
+        if subject_choice and subject_choice != "__custom__":
+            subject = subject_choice
+        elif subject_choice == "__custom__":
+            subject = subject_custom
+        elif subject_custom:
+            subject = subject_custom
         contact_info = request.form.get("contact_info", "").strip() or None
         notes = request.form.get("notes", "").strip() or None
 
@@ -197,7 +252,168 @@ def manage_students():
         return redirect(url_for("diary.manage_students"))
 
     students = Student.query.order_by(Student.created_at.desc()).all()
-    return render_template("students.html", students=students)
+    subject_palette = {subject.name: subject.color for subject in subject_settings}
+    subject_defaults = {subject.name: subject.default_duration for subject in subject_settings}
+
+    return render_template(
+        "students.html",
+        students=students,
+        subject_settings=subject_settings,
+        subject_palette=subject_palette,
+        subject_defaults=subject_defaults,
+    )
+
+
+@bp.route("/subjects", methods=["GET", "POST"])
+@login_required(TEACHER_ROLE)
+def manage_subjects():
+    subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+
+    if request.method == "POST":
+        action = request.form.get("action", "create")
+        if action == "create":
+            name = request.form.get("name", "").strip()
+            color = request.form.get("color", "").strip() or "#6366f1"
+            default_duration_str = request.form.get("default_duration", "").strip()
+            description = request.form.get("description", "").strip() or None
+            if not name:
+                flash("Введите название предмета.", "danger")
+            elif SubjectSetting.query.filter_by(name=name).first():
+                flash("Такой предмет уже добавлен.", "danger")
+            else:
+                try:
+                    default_duration = int(default_duration_str or 60)
+                except ValueError:
+                    default_duration = 60
+                subject = SubjectSetting(
+                    name=name,
+                    color=color,
+                    default_duration=default_duration,
+                    description=description,
+                )
+                db.session.add(subject)
+                db.session.commit()
+                flash("Настройки предмета сохранены.", "success")
+        elif action == "delete":
+            subject_id_raw = request.form.get("subject_id")
+            subject = (
+                SubjectSetting.query.get(int(subject_id_raw))
+                if subject_id_raw and subject_id_raw.isdigit()
+                else None
+            )
+            if subject:
+                db.session.delete(subject)
+                db.session.commit()
+                flash("Предмет удалён.", "info")
+        elif action == "update":
+            subject_id_raw = request.form.get("subject_id")
+            subject = (
+                SubjectSetting.query.get(int(subject_id_raw))
+                if subject_id_raw and subject_id_raw.isdigit()
+                else None
+            )
+            if subject:
+                subject.color = request.form.get("color", subject.color)
+                description = request.form.get("description", "").strip() or None
+                subject.description = description
+                duration_str = request.form.get("default_duration", "").strip()
+                if duration_str:
+                    try:
+                        subject.default_duration = int(duration_str)
+                    except ValueError:
+                        pass
+                db.session.commit()
+                flash("Настройки обновлены.", "success")
+        return redirect(url_for("diary.manage_subjects"))
+
+    student_counts = dict(
+        db.session.query(Student.subject, db.func.count(Student.id))
+        .filter(Student.subject.isnot(None))
+        .group_by(Student.subject)
+        .all()
+    )
+
+    return render_template(
+        "subjects.html",
+        subjects=subjects,
+        student_counts=student_counts,
+    )
+
+
+@bp.route("/library", methods=["GET", "POST"])
+@login_required(TEACHER_ROLE)
+def manage_library():
+    subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+
+    if request.method == "POST":
+        action = request.form.get("action", "create")
+        if action == "create":
+            title = request.form.get("title", "").strip()
+            url_value = request.form.get("url", "").strip() or None
+            description = request.form.get("description", "").strip() or None
+            tags = request.form.get("tags", "").strip() or None
+            subject_id_raw = request.form.get("subject_id")
+            subject_id = int(subject_id_raw) if subject_id_raw and subject_id_raw.isdigit() else None
+            if not title:
+                flash("Укажите название материала.", "danger")
+            else:
+                item = LibraryMaterial(
+                    title=title,
+                    url=url_value,
+                    description=description,
+                    tags=tags,
+                    subject_id=subject_id,
+                )
+                db.session.add(item)
+                db.session.commit()
+                flash("Материал добавлен в библиотеку.", "success")
+        elif action == "delete":
+            item_id_raw = request.form.get("item_id")
+            item = (
+                LibraryMaterial.query.get(int(item_id_raw))
+                if item_id_raw and item_id_raw.isdigit()
+                else None
+            )
+            if item:
+                db.session.delete(item)
+                db.session.commit()
+                flash("Материал удалён из библиотеки.", "info")
+        elif action == "update":
+            item_id_raw = request.form.get("item_id")
+            item = (
+                LibraryMaterial.query.get(int(item_id_raw))
+                if item_id_raw and item_id_raw.isdigit()
+                else None
+            )
+            if item:
+                item.title = request.form.get("title", item.title).strip() or item.title
+                item.url = request.form.get("url", "").strip() or item.url
+                item.description = request.form.get("description", "").strip() or None
+                item.tags = request.form.get("tags", "").strip() or None
+                subject_id_raw = request.form.get("subject_id")
+                item.subject_id = (
+                    int(subject_id_raw)
+                    if subject_id_raw and subject_id_raw.isdigit()
+                    else None
+                )
+                db.session.commit()
+                flash("Материал обновлён.", "success")
+        return redirect(url_for("diary.manage_library"))
+
+    subject_filter = request.args.get("subject")
+    query = LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc())
+    if subject_filter == "unassigned":
+        query = query.filter(LibraryMaterial.subject_id.is_(None))
+    elif subject_filter:
+        query = query.join(SubjectSetting).filter(SubjectSetting.name == subject_filter)
+    library_items = query.all()
+
+    return render_template(
+        "library.html",
+        subjects=subjects,
+        library_items=library_items,
+        subject_filter=subject_filter,
+    )
 
 
 @bp.route("/students/<int:student_id>", methods=["GET", "POST"])
@@ -239,6 +455,20 @@ def student_detail(student_id: int):
                 db.session.add(message)
                 db.session.commit()
                 flash("Сообщение отправлено ученику.", "success")
+        elif action == "attach_library_material":
+            library_material_id = request.form.get("library_material_id")
+            if library_material_id and library_material_id.isdigit():
+                library_item = LibraryMaterial.query.get(int(library_material_id))
+                if library_item:
+                    material = Material(
+                        student_id=student.id,
+                        title=library_item.title,
+                        url=library_item.url,
+                        notes=library_item.description,
+                    )
+                    db.session.add(material)
+                    db.session.commit()
+                    flash("Материал добавлен из библиотеки.", "success")
         elif action == "update_assignment_status":
             assignment_id = request.form.get("assignment_id")
             status = request.form.get("status")
@@ -251,6 +481,9 @@ def student_detail(student_id: int):
                 flash("Статус задания обновлён.", "success")
         return redirect(url_for("diary.student_detail", student_id=student.id))
 
+    subject_profile = (
+        SubjectSetting.query.filter_by(name=student.subject).first() if student.subject else None
+    )
     assignments = Assignment.query.filter_by(student_id=student.id).order_by(Assignment.created_at.desc()).all()
     materials = Material.query.filter_by(student_id=student.id).order_by(Material.created_at.desc()).all()
     messages = (
@@ -265,6 +498,22 @@ def student_detail(student_id: int):
     )
     payments = Payment.query.filter_by(student_id=student.id).order_by(Payment.paid_on.desc()).all()
 
+    suggested_library_items = []
+    if student.subject:
+        suggested_library_items = (
+            LibraryMaterial.query.join(
+                SubjectSetting, LibraryMaterial.subject_setting, isouter=True
+            )
+            .filter(SubjectSetting.name == student.subject)
+            .order_by(LibraryMaterial.created_at.desc())
+            .limit(5)
+            .all()
+        )
+    if not suggested_library_items:
+        suggested_library_items = (
+            LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(5).all()
+        )
+
     return render_template(
         "student_detail.html",
         student=student,
@@ -273,6 +522,8 @@ def student_detail(student_id: int):
         messages=messages,
         sessions=sessions,
         payments=payments,
+        subject_profile=subject_profile,
+        library_items=suggested_library_items,
     )
 
 
@@ -280,6 +531,11 @@ def student_detail(student_id: int):
 @login_required(TEACHER_ROLE)
 def manage_sessions():
     students = Student.query.order_by(Student.full_name.asc()).all()
+    subject_defaults = {
+        subject.name: subject.default_duration
+        for subject in SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+    }
+    subject_focus = request.args.get("subject")
 
     if request.method == "POST":
         student_id = request.form.get("student_id")
@@ -306,7 +562,13 @@ def manage_sessions():
         return redirect(url_for("diary.manage_sessions"))
 
     sessions = Session.query.order_by(Session.date.desc(), Session.start_time.desc()).all()
-    return render_template("sessions.html", sessions=sessions, students=students)
+    return render_template(
+        "sessions.html",
+        sessions=sessions,
+        students=students,
+        subject_defaults=subject_defaults,
+        subject_focus=subject_focus,
+    )
 
 
 @bp.route("/payments", methods=["GET", "POST"])
@@ -432,6 +694,24 @@ def student_board():
         .all()
     )
     first_name = student.full_name.split()[0] if student.full_name else "ученик"
+    subject_profile = (
+        SubjectSetting.query.filter_by(name=student.subject).first() if student.subject else None
+    )
+    library_preview = []
+    if student.subject:
+        library_preview = (
+            LibraryMaterial.query.join(
+                SubjectSetting, LibraryMaterial.subject_setting, isouter=True
+            )
+            .filter(SubjectSetting.name == student.subject)
+            .order_by(LibraryMaterial.created_at.desc())
+            .limit(3)
+            .all()
+        )
+    if not library_preview:
+        library_preview = (
+            LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(3).all()
+        )
 
     return render_template(
         "student_dashboard.html",
@@ -451,6 +731,8 @@ def student_board():
         prev_year=prev_year,
         next_month=next_month,
         next_year=next_year,
+        subject_profile=subject_profile,
+        library_preview=library_preview,
     )
 
 
@@ -511,7 +793,27 @@ def student_materials():
         .order_by(Material.created_at.desc())
         .all()
     )
-    return render_template("student_materials.html", student=student, materials=materials)
+    library_preview = []
+    if student.subject:
+        library_preview = (
+            LibraryMaterial.query.join(
+                SubjectSetting, LibraryMaterial.subject_setting, isouter=True
+            )
+            .filter(SubjectSetting.name == student.subject)
+            .order_by(LibraryMaterial.created_at.desc())
+            .limit(4)
+            .all()
+        )
+    if not library_preview:
+        library_preview = (
+            LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(4).all()
+        )
+    return render_template(
+        "student_materials.html",
+        student=student,
+        materials=materials,
+        library_preview=library_preview,
+    )
 
 
 @bp.route("/api/student/<int:student_id>/calendar")

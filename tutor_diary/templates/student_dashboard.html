@@ -5,7 +5,12 @@
   <div>
     <h1>Привет, {{ student_first_name }}!</h1>
     <p>
-      {% if student.subject %}Ваш предмет: <strong>{{ student.subject }}</strong>.{% endif %}
+      {% if subject_profile %}
+        Ваш предмет: <strong>{{ subject_profile.name }}</strong>.
+        Рекомендуемая длительность урока — {{ subject_profile.default_duration }} минут.
+      {% elif student.subject %}
+        Ваш предмет: <strong>{{ student.subject }}</strong>.
+      {% endif %}
       Следите за расписанием, заданиями и прогрессом в удобном формате.
     </p>
     <div class="student-hero__actions">
@@ -25,6 +30,14 @@
       {% endif %}
     {% else %}
       <p class="muted">Расписание пока свободно — ожидайте новых занятий.</p>
+    {% endif %}
+    {% if subject_profile %}
+      <div class="student-hero__subject" style="--subject-color: {{ subject_profile.color }}">
+        <span>{{ subject_profile.name }}</span>
+        {% if subject_profile.description %}
+          <p>{{ subject_profile.description }}</p>
+        {% endif %}
+      </div>
     {% endif %}
   </div>
 </section>
@@ -90,7 +103,7 @@
       <p class="muted">История оплат появится после первой транзакции.</p>
     {% endif %}
     <div class="panel__footer">
-      <h3>Материалы недели</h3>
+      <h3>Материалы от преподавателя</h3>
       {% if materials %}
         <ul class="stack stack--mini">
           {% for material in materials %}
@@ -106,6 +119,33 @@
     </div>
   </article>
 </section>
+
+{% if library_preview %}
+  <section class="panel panel--library-preview">
+    <div class="panel__header">
+      <h2>Библиотека ОбразОн</h2>
+      <a class="chip" href="{{ url_for('diary.student_materials') }}">Перейти в материалы</a>
+    </div>
+    <div class="library-grid library-grid--compact">
+      {% for item in library_preview %}
+        <article class="material-card material-card--spotlight">
+          <h3>{{ item.title }}</h3>
+          {% if item.description %}<p class="material-card__excerpt">{{ item.description }}</p>{% endif %}
+          <div class="material-card__meta">
+            {% if item.subject_setting %}
+              <span class="chip chip--accent" style="--chip-accent: {{ item.subject_setting.color }}">{{ item.subject_setting.name }}</span>
+            {% else %}
+              <span class="chip chip--light">Общий курс</span>
+            {% endif %}
+          </div>
+          {% if item.url %}
+            <a class="btn btn--ghost" href="{{ item.url }}" target="_blank" rel="noopener">Открыть</a>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
 
 <section class="panel">
   <div class="panel__header">

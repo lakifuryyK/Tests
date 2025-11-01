@@ -29,4 +29,29 @@
     <p class="muted">Пока нет загруженных материалов.</p>
   {% endif %}
 </section>
+{% if library_preview %}
+  <section class="panel panel--library-preview">
+    <div class="panel__header">
+      <h2>Рекомендации из библиотеки ОбразОн</h2>
+    </div>
+    <div class="library-grid library-grid--compact">
+      {% for item in library_preview %}
+        <article class="material-card material-card--spotlight">
+          <h3>{{ item.title }}</h3>
+          {% if item.description %}<p class="material-card__excerpt">{{ item.description }}</p>{% endif %}
+          <div class="material-card__meta">
+            {% if item.subject_setting %}
+              <span class="chip chip--accent" style="--chip-accent: {{ item.subject_setting.color }}">{{ item.subject_setting.name }}</span>
+            {% else %}
+              <span class="chip chip--light">Общий курс</span>
+            {% endif %}
+          </div>
+          {% if item.url %}
+            <a class="btn btn--ghost" href="{{ item.url }}" target="_blank" rel="noopener">Открыть</a>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
 {% endblock %}

@@ -24,7 +24,18 @@
     </label>
     <label class="form__field">
       <span>Предмет</span>
-      <input type="text" name="subject" placeholder="Математика" />
+      <select name="subject_choice">
+        <option value="">Выберите из списка</option>
+        {% for subject in subject_settings %}
+          <option value="{{ subject.name }}">{{ subject.name }} · {{ subject.default_duration }} мин.</option>
+        {% endfor %}
+        <option value="__custom__">Свой предмет</option>
+      </select>
+    </label>
+    <label class="form__field">
+      <span>Собственный предмет</span>
+      <input type="text" name="subject_custom" placeholder="Например, Олимпиадная физика" />
+      <small class="muted">Будет сохранён, если выбрать «Свой предмет».</small>
     </label>
     <label class="form__field">
       <span>Контакты</span>
@@ -36,6 +47,7 @@
     </label>
     <div class="form__actions">
       <button type="submit" class="btn btn--primary">Сохранить</button>
+      <a class="link" href="{{ url_for('diary.manage_subjects') }}">Управлять предметами</a>
     </div>
   </form>
 </section>
@@ -51,7 +63,16 @@
         <article class="student-card">
           <header class="student-card__header">
             <h3>{{ student.full_name }}</h3>
-            <span class="student-card__subject">{{ student.subject or 'Без предмета' }}</span>
+            {% set color = subject_palette.get(student.subject) %}
+            <span
+              class="student-card__subject"
+              style="--subject-color: {{ color or '#94a3b8' }}"
+            >
+              {{ student.subject or 'Без предмета' }}
+              {% if subject_defaults.get(student.subject) %}
+                · {{ subject_defaults.get(student.subject) }} мин.
+              {% endif %}
+            </span>
           </header>
           <dl class="student-card__meta">
             <div>

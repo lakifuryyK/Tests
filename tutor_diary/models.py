@@ -7,6 +7,21 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from . import db
 
 
+class SubjectSetting(db.Model):
+    __tablename__ = "subject_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    color = db.Column(db.String(20), nullable=False, default="#6366f1")
+    default_duration = db.Column(db.Integer, nullable=False, default=60)
+    description = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    library_items = db.relationship(
+        "LibraryMaterial", backref="subject_setting", lazy=True, cascade="all, delete-orphan"
+    )
+
+
 class Student(db.Model):
     __tablename__ = "students"
 
@@ -110,3 +125,15 @@ class Teacher(db.Model):
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
+
+
+class LibraryMaterial(db.Model):
+    __tablename__ = "library_materials"
+
+    id = db.Column(db.Integer, primary_key=True)
+    subject_id = db.Column(db.Integer, db.ForeignKey("subject_settings.id"), nullable=True)
+    title = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    tags = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

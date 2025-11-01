@@ -13,9 +13,17 @@
       <label class="form__field">
         <span>Ученик</span>
         <select name="student_id" required>
-          <option value="" disabled selected>Выберите ученика</option>
+          <option value="" disabled {% if not subject_focus %}selected{% endif %}>Выберите ученика</option>
           {% for student in students %}
-            <option value="{{ student.id }}">{{ student.full_name }}</option>
+            {% set is_focus = subject_focus and student.subject and subject_focus == student.subject %}
+            <option
+              value="{{ student.id }}"
+              data-duration="{{ subject_defaults.get(student.subject, 60) }}"
+              data-subject="{{ student.subject }}"
+              {% if is_focus %}selected{% endif %}
+            >
+              {{ student.full_name }}{% if student.subject %} — {{ student.subject }}{% endif %}
+            </option>
           {% endfor %}
         </select>
       </label>
@@ -29,11 +37,25 @@
       </label>
       <label class="form__field">
         <span>Длительность (мин)</span>
-        <input type="number" name="duration_minutes" min="15" step="15" value="60" required />
+        <input
+          type="number"
+          name="duration_minutes"
+          min="15"
+          step="15"
+          value="60"
+          required
+          data-field="duration"
+        />
       </label>
       <label class="form__field form__field--wide">
         <span>Тема занятия</span>
-        <input type="text" name="topic" placeholder="Например, Подготовка к ЕГЭ" required />
+        <input
+          type="text"
+          name="topic"
+          placeholder="Например, Подготовка к ЕГЭ"
+          required
+          data-field="topic"
+        />
       </label>
       <label class="form__field form__field--wide">
         <span>Домашнее задание</span>
@@ -92,4 +114,41 @@
     <p class="muted">Здесь появятся занятия после создания.</p>
   {% endif %}
 </section>
+{% endblock %}
+{% block scripts %}
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const studentSelect = document.querySelector('select[name="student_id"]');
+      const durationInput = document.querySelector('input[data-field="duration"]');
+      const topicInput = document.querySelector('input[data-field="topic"]');
+      if (!studentSelect) return;
+
+      const markTouched = (element) => {
+        if (!element) return;
+        element.addEventListener('input', () => {
+          element.dataset.touched = 'true';
+        });
+      };
+
+      markTouched(durationInput);
+      markTouched(topicInput);
+
+      studentSelect.addEventListener('change', () => {
+        const option = studentSelect.selectedOptions[0];
+        if (!option) return;
+        const duration = option.getAttribute('data-duration');
+        if (duration && durationInput && !durationInput.dataset.touched) {
+          durationInput.value = duration;
+        }
+        const subject = option.getAttribute('data-subject');
+        if (subject && topicInput && !topicInput.dataset.touched) {
+          topicInput.placeholder = `Например, ${subject}: новая тема`;
+        }
+      });
+
+      if (studentSelect.value) {
+        studentSelect.dispatchEvent(new Event('change'));
+      }
+    });
+  </script>
 {% endblock %}

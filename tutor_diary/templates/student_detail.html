@@ -10,10 +10,23 @@
     </p>
   </div>
   <div class="hero__meta">
-    <span class="chip">{{ student.subject or 'Без предмета' }}</span>
+    {% if subject_profile %}
+      <span class="chip chip--accent" style="--chip-accent: {{ subject_profile.color }}">
+        {{ subject_profile.name }} · {{ subject_profile.default_duration }} мин.
+      </span>
+    {% else %}
+      <span class="chip">{{ student.subject or 'Без предмета' }}</span>
+    {% endif %}
     <span class="chip">Логин: {{ student.username }}</span>
   </div>
 </section>
+
+{% if subject_profile and subject_profile.description %}
+  <section class="panel panel--subject-note">
+    <h2>Портрет предмета</h2>
+    <p>{{ subject_profile.description }}</p>
+  </section>
+{% endif %}
 
 <section class="grid grid--two">
   <article class="panel">
@@ -82,6 +95,24 @@
       <h2>Материалы</h2>
       <button class="chip chip--light" data-toggle="material">Добавить</button>
     </div>
+    {% if library_items %}
+      <form method="post" class="form form--inline">
+        <input type="hidden" name="action" value="attach_library_material" />
+        <label class="form__field">
+          <span>Добавить из библиотеки</span>
+          <select name="library_material_id" required>
+            {% for item in library_items %}
+              <option value="{{ item.id }}">
+                {{ item.title }}{% if item.subject_setting %} · {{ item.subject_setting.name }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="form__actions">
+          <button type="submit" class="btn btn--ghost">Прикрепить</button>
+        </div>
+      </form>
+    {% endif %}
     <form method="post" class="form hidden" data-form="material">
       <input type="hidden" name="action" value="add_material" />
       <label class="form__field">
@@ -117,6 +148,24 @@
       </ul>
     {% else %}
       <p class="muted">Материалы ещё не добавлены.</p>
+    {% endif %}
+    {% if library_items %}
+      <div class="library-suggestions">
+        <h3>Рекомендации из библиотеки</h3>
+        <ul>
+          {% for item in library_items %}
+            <li>
+              <strong>{{ item.title }}</strong>
+              {% if item.subject_setting %}
+                <span class="chip chip--mini" style="--chip-accent: {{ item.subject_setting.color }}">
+                  {{ item.subject_setting.name }}
+                </span>
+              {% endif %}
+              {% if item.description %}<p>{{ item.description }}</p>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
     {% endif %}
   </article>
 </section>
