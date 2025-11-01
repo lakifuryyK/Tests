@@ -108,6 +108,35 @@ def create_app(test_config: dict | None = None) -> Flask:
             )
             db.session.commit()
 
+        if "sessions" in table_names:
+            session_columns = {column["name"] for column in inspector.get_columns("sessions")}
+            altered = False
+            if "fee_amount" not in session_columns:
+                db.session.execute(
+                    text("ALTER TABLE sessions ADD COLUMN fee_amount NUMERIC(10, 2)")
+                )
+                altered = True
+            if "payment_status" not in session_columns:
+                db.session.execute(
+                    text(
+                        "ALTER TABLE sessions ADD COLUMN payment_status VARCHAR(20)"
+                    )
+                )
+                db.session.execute(
+                    text(
+                        "UPDATE sessions SET payment_status = 'unpaid' "
+                        "WHERE payment_status IS NULL"
+                    )
+                )
+                altered = True
+            if "payment_id" not in session_columns:
+                db.session.execute(
+                    text("ALTER TABLE sessions ADD COLUMN payment_id INTEGER")
+                )
+                altered = True
+            if altered:
+                db.session.commit()
+
     def bootstrap_database() -> None:
         """Ensure tables and the default admin account exist."""
         db.create_all()

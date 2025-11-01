@@ -216,6 +216,15 @@
             <p class="stack__meta">
               Длительность: {{ lesson.duration_minutes }} мин · Статус: {{ lesson.status }}
             </p>
+            <p class="stack__meta">
+              Оплата: {{ payment_status_choices.get(lesson.payment_status, '—') }}
+              {% if lesson.fee_amount %}
+                · {{ '{:,.2f}'.format(lesson.fee_amount).replace(',', ' ') }} ₽
+              {% endif %}
+              {% if lesson.payment %}
+                · поступление {{ lesson.payment.paid_on.strftime('%d.%m.%Y') }}
+              {% endif %}
+            </p>
             {% if lesson.homework %}
               <p class="stack__text">ДЗ: {{ lesson.homework }}</p>
             {% endif %}
@@ -237,6 +246,7 @@
           <th>Дата</th>
           <th>Сумма</th>
           <th>Метод</th>
+          <th>Занятия</th>
           <th>Комментарий</th>
         </tr>
       </thead>
@@ -246,6 +256,17 @@
             <td>{{ payment.paid_on.strftime('%d.%m.%Y') }}</td>
             <td>{{ '{:,.2f}'.format(payment.amount).replace(',', ' ') }} ₽</td>
             <td>{{ payment.method }}</td>
+            <td>
+              {% if payment.sessions %}
+                <ul class="payment-session-list">
+                  {% for lesson in payment.sessions %}
+                    <li>{{ lesson.date.strftime('%d.%m') }} · {{ lesson.topic }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                —
+              {% endif %}
+            </td>
             <td>{{ payment.notes or '—' }}</td>
           </tr>
         {% endfor %}

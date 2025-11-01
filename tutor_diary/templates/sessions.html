@@ -81,6 +81,18 @@
         <textarea name="homework" rows="3" placeholder="Опишите задание (необязательно)"></textarea>
       </label>
       <label class="form__field">
+        <span>Стоимость занятия (₽)</span>
+        <input type="number" step="0.01" min="0" name="fee_amount" placeholder="Например, 1500" />
+      </label>
+      <label class="form__field">
+        <span>Статус оплаты</span>
+        <select name="payment_status">
+          {% for key, label in payment_status_choices.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
         <span>Статус</span>
         <select name="status">
           <option value="scheduled">Запланировано</option>
@@ -130,7 +142,8 @@
             <th>Тема</th>
             <th>Домашнее задание</th>
             <th>Длительность</th>
-            <th>Статус</th>
+            <th>Оплата</th>
+            <th>Статус занятия</th>
           </tr>
         </thead>
         <tbody>
@@ -141,6 +154,34 @@
               <td>{{ session.topic }}</td>
               <td>{{ session.homework or '—' }}</td>
               <td>{{ session.duration_minutes }} мин</td>
+              <td>
+                <form method="post" class="session-payment-form">
+                  <input type="hidden" name="action" value="update_finance" />
+                  <input type="hidden" name="session_id" value="{{ session.id }}" />
+                  <div class="session-payment-form__row">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      name="fee_amount"
+                      value="{{ session.fee_amount if session.fee_amount is not none else '' }}"
+                      placeholder="0.00"
+                    />
+                    <select name="payment_status">
+                      {% for key, label in payment_status_choices.items() %}
+                        <option value="{{ key }}" {% if session.payment_status == key %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn--ghost btn--mini">Сохранить</button>
+                  </div>
+                  {% if session.payment %}
+                    <p class="session-payment-form__meta">
+                      Оплата {{ session.payment.paid_on.strftime('%d.%m.%Y') }} ·
+                      {{ '{:,.2f}'.format(session.payment.amount).replace(',', ' ') }} ₽
+                    </p>
+                  {% endif %}
+                </form>
+              </td>
               <td><span class="status status--{{ session.status }}">{{ session.status|title }}</span></td>
             </tr>
           {% endfor %}

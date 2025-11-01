@@ -16,6 +16,9 @@
   </div>
   <form method="post" class="form form--grid">
     {% if is_admin %}
+      <input type="hidden" name="action" value="create" />
+    {% endif %}
+    {% if is_admin %}
       <label class="form__field">
         <span>Преподаватель</span>
         <select name="assigned_teacher_id" required>
@@ -132,11 +135,35 @@
           {% if student.notes %}
             <p class="student-card__notes">{{ student.notes }}</p>
           {% endif %}
-          <footer class="student-card__footer">
-            <a class="btn btn--ghost" href="{{ url_for('diary.student_detail', student_id=student.id) }}">
-              Управлять
-            </a>
-          </footer>
+          {% if is_admin %}
+            <div class="student-card__actions">
+              <form method="post" class="student-card__action">
+                <input type="hidden" name="action" value="reassign" />
+                <input type="hidden" name="student_id" value="{{ student.id }}" />
+                <label class="sr-only" for="reassign-{{ student.id }}">Новый преподаватель</label>
+                <select name="new_teacher_id" id="reassign-{{ student.id }}">
+                  <option value="">Выберите преподавателя</option>
+                  {% for option in teacher_options %}
+                    <option value="{{ option.id }}" {% if student.teacher and student.teacher.id == option.id %}selected{% endif %}>
+                      {{ option.username }} · лимит {{ option.max_students }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn--ghost btn--mini">Переназначить</button>
+              </form>
+              <form method="post" class="student-card__action">
+                <input type="hidden" name="action" value="delete" />
+                <input type="hidden" name="student_id" value="{{ student.id }}" />
+                <button type="submit" class="btn btn--danger btn--mini">Удалить</button>
+              </form>
+            </div>
+          {% else %}
+            <footer class="student-card__footer">
+              <a class="btn btn--ghost" href="{{ url_for('diary.student_detail', student_id=student.id) }}">
+                Управлять
+              </a>
+            </footer>
+          {% endif %}
         </article>
       {% endfor %}
     </div>

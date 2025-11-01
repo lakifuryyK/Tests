@@ -10,7 +10,7 @@
     </p>
     <div class="dashboard-intro__cta">
       <a class="btn btn--primary" href="{{ url_for('diary.admin_manage_teachers') }}">Управлять преподавателями</a>
-      <a class="btn btn--ghost" href="{{ url_for('diary.manage_students') }}">Все ученики</a>
+      <a class="btn btn--ghost" href="{{ url_for('diary.admin_manage_students') }}">Все ученики</a>
     </div>
   </div>
   <div class="dashboard-intro__art" aria-hidden="true">
@@ -118,7 +118,7 @@
           <li class="stack__item">
             <div class="stack__title">{{ student.full_name }}</div>
             <p class="stack__meta">Логин: {{ student.username }}</p>
-            <a class="link" href="{{ url_for('diary.manage_students') }}">Назначить преподавателя</a>
+            <a class="link" href="{{ url_for('diary.admin_manage_students') }}">Назначить преподавателя</a>
           </li>
         {% endfor %}
       </ul>

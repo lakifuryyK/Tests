@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from calendar import Calendar, monthrange
+from decimal import Decimal, InvalidOperation
 from datetime import date, datetime, timedelta
 from functools import wraps
 
@@ -52,6 +53,12 @@ MONTH_NAMES = {
     12: "Декабрь",
 }
 
+PAYMENT_STATUS_CHOICES = {
+    "unpaid": "Ожидает оплаты",
+    "invoiced": "Счёт отправлен",
+    "paid": "Оплачено",
+}
+
 
 def login_required(*roles: str):
     def decorator(view):
@@ -75,9 +82,8 @@ def current_teacher() -> Teacher | None:
 
 
 def ensure_teacher_access(student: Student) -> None:
-    role = session.get("role")
-    if role == ADMIN_ROLE:
-        return
+    if session.get("role") != TEACHER_ROLE:
+        abort(403)
     teacher = current_teacher()
     if not teacher or student.teacher_id != teacher.id:
         abort(403)
@@ -174,22 +180,36 @@ def index():
     thirty_days_ago = today - timedelta(days=30)
     students_needing_attention: list[dict[str, object]] = []
     for student in students:
+        outstanding_lessons = [
+            lesson for lesson in student.sessions if lesson.payment_status != "paid"
+        ]
+        outstanding_total = sum(
+            (lesson.fee_amount or Decimal("0")) for lesson in outstanding_lessons
+        )
         last_payment = (
             Payment.query.filter_by(student_id=student.id)
             .order_by(Payment.paid_on.desc())
             .first()
         )
-        if not last_payment or last_payment.paid_on < thirty_days_ago:
-            days_since = (today - last_payment.paid_on).days if last_payment else None
+        days_since = (today - last_payment.paid_on).days if last_payment else None
+        if outstanding_lessons or not last_payment or last_payment.paid_on < thirty_days_ago:
             students_needing_attention.append(
                 {
                     "student": student,
                     "last_payment": last_payment,
                     "days_since": days_since,
+                    "outstanding_count": len(outstanding_lessons),
+                    "outstanding_total": outstanding_total,
                 }
             )
 
     students_needing_attention = students_needing_attention[:5]
+    outstanding_students = [
+        entry for entry in students_needing_attention if entry["outstanding_count"]
+    ]
+    total_outstanding_value = sum(
+        entry["outstanding_total"] for entry in outstanding_students
+    )
     sessions_today = (
         session_query.filter(Session.date == today)
         .order_by(Session.start_time.asc())
@@ -281,6 +301,18 @@ def index():
             "Есть просроченные задания — начните с "
             f"{overdue_students.split(',')[0].strip() if overdue_students else 'важных задач'}."
         )
+    elif outstanding_students and focus_tone not in {"warning", "danger"}:
+        focus_tone = "warning"
+        highlighted = outstanding_students[0]["student"].full_name
+        amount_hint = (
+            f" На кону {total_outstanding_value:,.0f} ₽.".replace(",", " ")
+            if total_outstanding_value
+            else ""
+        )
+        summary_message = (
+            f"У {highlighted} есть неоплаченные уроки." + amount_hint
+            + " Согласуйте оплату до начала следующего занятия."
+        )
     elif assignments_due_soon and focus_tone != "warning":
         focus_tone = "info"
         summary_message = (
@@ -371,9 +403,14 @@ def index():
                 "description": (
                     "Ожидают напоминания: "
                     f"{format_names([entry['student'] for entry in students_needing_attention])}."
-                    " Проверьте статус платежей."
+                    + (
+                        f" Неоплачено {total_outstanding_value:,.0f} ₽.".replace(",", " ")
+                        if total_outstanding_value
+                        else ""
+                    )
+                    + " Обсудите с родителями график оплат."
                 ),
-                "tone": "warning",
+                "tone": "danger" if total_outstanding_value else "warning",
                 "link": {
                     "url": url_for("diary.manage_payments"),
                     "label": "Перейти к оплатам",
@@ -624,10 +661,13 @@ def admin_manage_teachers():
 
 
 @bp.route("/students", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE, ADMIN_ROLE)
+@login_required(TEACHER_ROLE)
 def manage_students():
-    role = session.get("role")
-    teacher = current_teacher() if role == TEACHER_ROLE else None
+    teacher = current_teacher()
+    if not teacher:
+        flash("Сессия истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
+
     subject_settings = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
 
     if request.method == "POST":
@@ -646,35 +686,13 @@ def manage_students():
         contact_info = request.form.get("contact_info", "").strip() or None
         notes = request.form.get("notes", "").strip() or None
 
-        assigned_teacher: Teacher | None
-        if role == TEACHER_ROLE:
-            assigned_teacher = teacher
-        else:
-            teacher_id_raw = request.form.get("assigned_teacher_id")
-            assigned_teacher = (
-                Teacher.query.get(int(teacher_id_raw))
-                if teacher_id_raw and teacher_id_raw.isdigit()
-                else None
-            )
-        if not assigned_teacher:
-            flash("Выберите преподавателя для ученика.", "danger")
-            return redirect(url_for("diary.manage_students"))
-
-        current_count = Student.query.filter_by(teacher_id=assigned_teacher.id).count()
-        if current_count >= assigned_teacher.max_students:
+        current_count = Student.query.filter_by(teacher_id=teacher.id).count()
+        if current_count >= teacher.max_students:
             flash(
-                f"Превышен лимит: преподаватель может вести до {assigned_teacher.max_students} учеников.",
+                f"Вы достигли лимита: максимум {teacher.max_students} учеников.",
                 "danger",
             )
-            if role == ADMIN_ROLE:
-                return redirect(url_for("diary.manage_students", teacher_id=assigned_teacher.id))
             return redirect(url_for("diary.manage_students"))
-
-        redirect_target = (
-            url_for("diary.manage_students", teacher_id=assigned_teacher.id)
-            if role == ADMIN_ROLE
-            else url_for("diary.manage_students")
-        )
 
         if not all([full_name, username, password]):
             flash("Укажите ФИО, логин и пароль ученика.", "danger")
@@ -687,38 +705,177 @@ def manage_students():
                 subject=subject,
                 contact_info=contact_info,
                 notes=notes,
-                teacher_id=assigned_teacher.id,
+                teacher_id=teacher.id,
             )
             student.set_password(password)
             db.session.add(student)
             db.session.commit()
             flash("Ученик успешно добавлен.", "success")
-        return redirect(redirect_target)
+        return redirect(url_for("diary.manage_students"))
 
+    students = (
+        Student.query.filter_by(teacher_id=teacher.id)
+        .order_by(Student.created_at.desc())
+        .all()
+    )
+    subject_palette = {subject.name: subject.color for subject in subject_settings}
+    subject_defaults = {subject.name: subject.default_duration for subject in subject_settings}
+    current_count = len(students)
+    limit_remaining = max(teacher.max_students - current_count, 0)
+
+    return render_template(
+        "students.html",
+        students=students,
+        subject_settings=subject_settings,
+        subject_palette=subject_palette,
+        subject_defaults=subject_defaults,
+        max_students=teacher.max_students,
+        teacher_options=[],
+        selected_teacher_id=None,
+        is_admin=False,
+        selected_teacher=teacher,
+        current_student_total=current_count,
+        student_limit=teacher.max_students,
+        limit_remaining=limit_remaining,
+    )
+
+
+@bp.route("/admin/students", methods=["GET", "POST"])
+@login_required(ADMIN_ROLE)
+def admin_manage_students():
+    admin = Admin.query.get(session.get("admin_id"))
+    if not admin:
+        flash("Администратор не найден.", "danger")
+        return redirect(url_for("diary.login"))
+
+    subject_settings = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+    teacher_options = Teacher.query.order_by(Teacher.username.asc()).all()
     selected_teacher_id = request.args.get("teacher_id", type=int)
-    if role == TEACHER_ROLE and teacher:
-        students_query = Student.query.filter_by(teacher_id=teacher.id)
-        max_students = teacher.max_students
-    elif selected_teacher_id:
-        students_query = Student.query.filter_by(teacher_id=selected_teacher_id)
+
+    if request.method == "POST":
+        action = request.form.get("action", "create")
+        redirect_args: dict[str, int] = {}
+
+        if action == "delete":
+            student_id_raw = request.form.get("student_id")
+            student_obj = (
+                Student.query.get(int(student_id_raw))
+                if student_id_raw and student_id_raw.isdigit()
+                else None
+            )
+            if not student_obj:
+                flash("Ученик не найден.", "danger")
+            else:
+                teacher_id = student_obj.teacher_id
+                db.session.delete(student_obj)
+                db.session.commit()
+                if teacher_id:
+                    redirect_args["teacher_id"] = teacher_id
+                flash("Ученик удалён из системы.", "info")
+            return redirect(url_for("diary.admin_manage_students", **redirect_args))
+
+        if action == "reassign":
+            student_id_raw = request.form.get("student_id")
+            new_teacher_id_raw = request.form.get("new_teacher_id")
+            student_obj = (
+                Student.query.get(int(student_id_raw))
+                if student_id_raw and student_id_raw.isdigit()
+                else None
+            )
+            new_teacher = (
+                Teacher.query.get(int(new_teacher_id_raw))
+                if new_teacher_id_raw and new_teacher_id_raw.isdigit()
+                else None
+            )
+            if not student_obj or not new_teacher:
+                flash("Выберите ученика и преподавателя для переназначения.", "danger")
+                return redirect(url_for("diary.admin_manage_students"))
+            student_count = Student.query.filter_by(teacher_id=new_teacher.id).count()
+            if (
+                new_teacher.id != student_obj.teacher_id
+                and student_count >= new_teacher.max_students
+            ):
+                flash(
+                    "У выбранного преподавателя нет свободных мест.",
+                    "danger",
+                )
+                redirect_args["teacher_id"] = new_teacher.id
+                return redirect(url_for("diary.admin_manage_students", **redirect_args))
+            student_obj.teacher_id = new_teacher.id
+            db.session.commit()
+            redirect_args["teacher_id"] = new_teacher.id
+            flash("Ученик успешно переназначен.", "success")
+            return redirect(url_for("diary.admin_manage_students", **redirect_args))
+
+        # default to creating a new student
+        full_name = request.form.get("full_name", "").strip()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        subject_choice = request.form.get("subject_choice")
+        subject_custom = request.form.get("subject_custom", "").strip() or None
+        contact_info = request.form.get("contact_info", "").strip() or None
+        notes = request.form.get("notes", "").strip() or None
+        subject = None
+        if subject_choice and subject_choice != "__custom__":
+            subject = subject_choice
+        elif subject_choice == "__custom__":
+            subject = subject_custom
+        elif subject_custom:
+            subject = subject_custom
+
+        teacher_id_raw = request.form.get("assigned_teacher_id")
+        assigned_teacher = (
+            Teacher.query.get(int(teacher_id_raw))
+            if teacher_id_raw and teacher_id_raw.isdigit()
+            else None
+        )
+        if not assigned_teacher:
+            flash("Выберите преподавателя для ученика.", "danger")
+            return redirect(url_for("diary.admin_manage_students"))
+
+        current_count = Student.query.filter_by(teacher_id=assigned_teacher.id).count()
+        if current_count >= assigned_teacher.max_students:
+            flash(
+                f"Превышен лимит: преподаватель может вести до {assigned_teacher.max_students} учеников.",
+                "danger",
+            )
+            return redirect(
+                url_for("diary.admin_manage_students", teacher_id=assigned_teacher.id)
+            )
+
+        if not all([full_name, username, password]):
+            flash("Укажите ФИО, логин и пароль ученика.", "danger")
+            return redirect(url_for("diary.admin_manage_students"))
+        if Student.query.filter_by(username=username).first():
+            flash("Ученик с таким логином уже существует.", "danger")
+            return redirect(url_for("diary.admin_manage_students"))
+
+        student = Student(
+            full_name=full_name,
+            username=username,
+            subject=subject,
+            contact_info=contact_info,
+            notes=notes,
+            teacher_id=assigned_teacher.id,
+        )
+        student.set_password(password)
+        db.session.add(student)
+        db.session.commit()
+        flash("Ученик успешно создан.", "success")
+        return redirect(url_for("diary.admin_manage_students", teacher_id=assigned_teacher.id))
+
+    students_query = Student.query
+    selected_teacher = None
+    max_students = None
+    if selected_teacher_id:
+        students_query = students_query.filter_by(teacher_id=selected_teacher_id)
         selected_teacher = Teacher.query.get(selected_teacher_id)
-        max_students = selected_teacher.max_students if selected_teacher else None
-    else:
-        students_query = Student.query
-        max_students = None
+        if selected_teacher:
+            max_students = selected_teacher.max_students
 
     students = students_query.order_by(Student.created_at.desc()).all()
     subject_palette = {subject.name: subject.color for subject in subject_settings}
     subject_defaults = {subject.name: subject.default_duration for subject in subject_settings}
-    teacher_options = Teacher.query.order_by(Teacher.username.asc()).all() if role == ADMIN_ROLE else []
-    selected_teacher = (
-        Teacher.query.get(selected_teacher_id) if selected_teacher_id else teacher
-    )
-    current_count = len(students)
-
-    limit_remaining = (
-        max(max_students - current_count, 0) if max_students is not None else None
-    )
 
     return render_template(
         "students.html",
@@ -729,11 +886,11 @@ def manage_students():
         max_students=max_students,
         teacher_options=teacher_options,
         selected_teacher_id=selected_teacher_id,
-        is_admin=role == ADMIN_ROLE,
+        is_admin=True,
         selected_teacher=selected_teacher,
-        current_student_total=current_count,
-        student_limit=max_students,
-        limit_remaining=limit_remaining,
+        current_student_total=len(students),
+        student_limit=None,
+        limit_remaining=None,
     )
 
 
@@ -893,7 +1050,7 @@ def manage_library():
 
 
 @bp.route("/students/<int:student_id>", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE, ADMIN_ROLE)
+@login_required(TEACHER_ROLE)
 def student_detail(student_id: int):
     student = Student.query.get_or_404(student_id)
     ensure_teacher_access(student)
@@ -1001,30 +1158,62 @@ def student_detail(student_id: int):
         payments=payments,
         subject_profile=subject_profile,
         library_items=suggested_library_items,
+        payment_status_choices=PAYMENT_STATUS_CHOICES,
     )
 
 
 @bp.route("/sessions", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE, ADMIN_ROLE)
+@login_required(TEACHER_ROLE)
 def manage_sessions():
-    role = session.get("role")
-    teacher = current_teacher() if role == TEACHER_ROLE else None
+    teacher = current_teacher()
+    if not teacher:
+        flash("Сессия истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
     subject_defaults = {
         subject.name: subject.default_duration
         for subject in SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
     }
     subject_focus = request.args.get("subject")
-    selected_teacher_id = request.args.get("teacher_id", type=int)
 
-    students_query = Student.query.order_by(Student.full_name.asc())
-    if teacher:
-        students_query = students_query.filter(Student.teacher_id == teacher.id)
-        selected_teacher_id = teacher.id
-    elif selected_teacher_id:
-        students_query = students_query.filter(Student.teacher_id == selected_teacher_id)
+    students_query = Student.query.order_by(Student.full_name.asc()).filter(
+        Student.teacher_id == teacher.id
+    )
     students = students_query.all()
 
     if request.method == "POST":
+        action = request.form.get("action", "create")
+        redirect_target = url_for("diary.manage_sessions")
+
+        if action == "update_finance":
+            session_id_raw = request.form.get("session_id")
+            lesson = (
+                Session.query.get(int(session_id_raw))
+                if session_id_raw and session_id_raw.isdigit()
+                else None
+            )
+            if not lesson or lesson.student.teacher_id != teacher.id:
+                flash("Занятие не найдено или относится к другому преподавателю.", "danger")
+                return redirect(redirect_target)
+
+            fee_amount_str = request.form.get("fee_amount", "").strip()
+            payment_state = request.form.get("payment_status", "unpaid")
+            try:
+                lesson.fee_amount = (
+                    Decimal(fee_amount_str) if fee_amount_str else None
+                )
+            except InvalidOperation:
+                flash("Введите корректную сумму занятия.", "danger")
+                return redirect(redirect_target)
+
+            if payment_state not in PAYMENT_STATUS_CHOICES:
+                payment_state = "unpaid"
+            lesson.payment_status = payment_state
+            if payment_state != "paid":
+                lesson.payment_id = None
+            db.session.commit()
+            flash("Информация об оплате обновлена.", "success")
+            return redirect(redirect_target)
+
         student_id_raw = request.form.get("student_id", "")
         date_str = request.form.get("date")
         start_time_str = request.form.get("start_time")
@@ -1032,25 +1221,29 @@ def manage_sessions():
         topic = request.form.get("topic", "").strip()
         homework = request.form.get("homework", "").strip() or None
         status = request.form.get("status", "scheduled")
+        payment_state = request.form.get("payment_status", "unpaid")
+        fee_amount_str = request.form.get("fee_amount", "").strip()
 
         student_obj = (
             Student.query.get(int(student_id_raw))
             if student_id_raw and student_id_raw.isdigit()
             else None
         )
-        redirect_args: dict[str, int] = {}
-        redirect_teacher_id = selected_teacher_id
-        if role == ADMIN_ROLE and student_obj and student_obj.teacher_id:
-            redirect_teacher_id = student_obj.teacher_id
-        if role == ADMIN_ROLE and redirect_teacher_id:
-            redirect_args["teacher_id"] = redirect_teacher_id
-        redirect_target = url_for("diary.manage_sessions", **redirect_args)
         if not student_obj:
             flash("Выберите ученика.", "danger")
             return redirect(redirect_target)
-        if teacher and student_obj.teacher_id != teacher.id:
+        if student_obj.teacher_id != teacher.id:
             flash("Нельзя планировать уроки для чужого ученика.", "danger")
             return redirect(redirect_target)
+
+        try:
+            fee_amount = Decimal(fee_amount_str) if fee_amount_str else None
+        except InvalidOperation:
+            flash("Введите корректную стоимость занятия.", "danger")
+            return redirect(redirect_target)
+
+        if payment_state not in PAYMENT_STATUS_CHOICES:
+            payment_state = "unpaid"
 
         if date_str and start_time_str and duration and topic:
             session_entry = Session(
@@ -1061,6 +1254,8 @@ def manage_sessions():
                 topic=topic,
                 homework=homework,
                 status=status,
+                fee_amount=fee_amount,
+                payment_status=payment_state,
             )
             db.session.add(session_entry)
             db.session.commit()
@@ -1069,15 +1264,11 @@ def manage_sessions():
             flash("Заполните дату, время, длительность и тему занятия.", "danger")
         return redirect(redirect_target)
 
-    sessions_query = Session.query.join(Student, Session.student_id == Student.id)
-    if teacher:
-        sessions_query = sessions_query.filter(Student.teacher_id == teacher.id)
-    elif selected_teacher_id:
-        sessions_query = sessions_query.filter(Student.teacher_id == selected_teacher_id)
-    sessions = sessions_query.order_by(Session.date.desc(), Session.start_time.desc()).all()
-
-    teacher_options = (
-        Teacher.query.order_by(Teacher.username.asc()).all() if role == ADMIN_ROLE else []
+    sessions = (
+        Session.query.join(Student, Session.student_id == Student.id)
+        .filter(Student.teacher_id == teacher.id)
+        .order_by(Session.date.desc(), Session.start_time.desc())
+        .all()
     )
 
     return render_template(
@@ -1086,84 +1277,118 @@ def manage_sessions():
         students=students,
         subject_defaults=subject_defaults,
         subject_focus=subject_focus,
-        teacher_options=teacher_options,
-        selected_teacher_id=selected_teacher_id,
+        teacher_options=[],
+        selected_teacher_id=None,
+        payment_status_choices=PAYMENT_STATUS_CHOICES,
     )
 
 
 @bp.route("/payments", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE, ADMIN_ROLE)
+@login_required(TEACHER_ROLE)
 def manage_payments():
-    role = session.get("role")
-    teacher = current_teacher() if role == TEACHER_ROLE else None
-    selected_teacher_id = request.args.get("teacher_id", type=int)
+    teacher = current_teacher()
+    if not teacher:
+        flash("Сессия истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
 
-    students_query = Student.query.order_by(Student.full_name.asc())
-    if teacher:
-        students_query = students_query.filter(Student.teacher_id == teacher.id)
-        selected_teacher_id = teacher.id
-    elif selected_teacher_id:
-        students_query = students_query.filter(Student.teacher_id == selected_teacher_id)
-    students = students_query.all()
+    students = (
+        Student.query.filter_by(teacher_id=teacher.id)
+        .order_by(Student.full_name.asc())
+        .all()
+    )
+
+    unpaid_sessions = (
+        Session.query.join(Student, Session.student_id == Student.id)
+        .filter(
+            Student.teacher_id == teacher.id,
+            Session.payment_status != "paid",
+        )
+        .order_by(Session.date.asc(), Session.start_time.asc())
+        .all()
+    )
+    unpaid_map: dict[int, list[Session]] = {}
+    for session_entry in unpaid_sessions:
+        unpaid_map.setdefault(session_entry.student_id, []).append(session_entry)
 
     if request.method == "POST":
         student_id_raw = request.form.get("student_id", "")
-        amount = request.form.get("amount")
+        amount_str = request.form.get("amount", "").strip()
         paid_on_str = request.form.get("paid_on")
         method = request.form.get("method", "").strip()
         notes = request.form.get("notes", "").strip() or None
+        session_ids = request.form.getlist("session_ids")
 
         student_obj = (
             Student.query.get(int(student_id_raw))
             if student_id_raw and student_id_raw.isdigit()
             else None
         )
-        redirect_args: dict[str, int] = {}
-        redirect_teacher_id = selected_teacher_id
-        if role == ADMIN_ROLE and student_obj and student_obj.teacher_id:
-            redirect_teacher_id = student_obj.teacher_id
-        if role == ADMIN_ROLE and redirect_teacher_id:
-            redirect_args["teacher_id"] = redirect_teacher_id
-        redirect_target = url_for("diary.manage_payments", **redirect_args)
-        if not student_obj:
-            flash("Выберите ученика.", "danger")
-            return redirect(redirect_target)
-        if teacher and student_obj.teacher_id != teacher.id:
-            flash("Нельзя управлять оплатами чужого ученика.", "danger")
+        redirect_target = url_for("diary.manage_payments")
+        if not student_obj or student_obj.teacher_id != teacher.id:
+            flash("Выберите ученика из своего списка.", "danger")
             return redirect(redirect_target)
 
-        if amount and paid_on_str and method:
-            payment = Payment(
-                student_id=student_obj.id,
-                amount=float(amount),
-                paid_on=datetime.strptime(paid_on_str, "%Y-%m-%d").date(),
-                method=method,
-                notes=notes,
-            )
-            db.session.add(payment)
-            db.session.commit()
-            flash("Оплата сохранена.", "success")
+        selected_sessions: list[Session] = []
+        for session_id in session_ids:
+            if not session_id.isdigit():
+                continue
+            lesson = Session.query.get(int(session_id))
+            if lesson and lesson.student_id == student_obj.id:
+                selected_sessions.append(lesson)
+
+        if not amount_str and selected_sessions:
+            total = sum((lesson.fee_amount or Decimal("0")) for lesson in selected_sessions)
+            amount_value = total
         else:
-            flash("Заполните сумму, дату оплаты и способ.", "danger")
+            try:
+                amount_value = Decimal(amount_str or "0")
+            except InvalidOperation:
+                amount_value = Decimal("0")
+
+        if amount_value <= 0 or not paid_on_str or not method:
+            flash("Укажите сумму, дату и способ оплаты. Сумма может быть рассчитана автоматически.", "danger")
+            return redirect(redirect_target)
+
+        payment = Payment(
+            student_id=student_obj.id,
+            amount=amount_value,
+            paid_on=datetime.strptime(paid_on_str, "%Y-%m-%d").date(),
+            method=method,
+            notes=notes,
+        )
+        db.session.add(payment)
+        db.session.commit()
+
+        if selected_sessions:
+            for lesson in selected_sessions:
+                lesson.payment_status = "paid"
+                lesson.payment_id = payment.id
+            db.session.commit()
+        flash("Оплата сохранена.", "success")
         return redirect(redirect_target)
 
-    payments_query = Payment.query.join(Student, Payment.student_id == Student.id)
-    if teacher:
-        payments_query = payments_query.filter(Student.teacher_id == teacher.id)
-    elif selected_teacher_id:
-        payments_query = payments_query.filter(Student.teacher_id == selected_teacher_id)
-    payments = payments_query.order_by(Payment.paid_on.desc()).all()
-
-    teacher_options = (
-        Teacher.query.order_by(Teacher.username.asc()).all() if role == ADMIN_ROLE else []
+    payments = (
+        Payment.query.join(Student, Payment.student_id == Student.id)
+        .filter(Student.teacher_id == teacher.id)
+        .order_by(Payment.paid_on.desc())
+        .all()
     )
+
+    outstanding_totals = {
+        student_id: float(
+            sum((lesson.fee_amount or Decimal("0")) for lesson in lessons)
+        )
+        for student_id, lessons in unpaid_map.items()
+    }
 
     return render_template(
         "payments.html",
         payments=payments,
         students=students,
-        teacher_options=teacher_options,
-        selected_teacher_id=selected_teacher_id,
+        teacher_options=[],
+        selected_teacher_id=None,
+        unpaid_sessions_map=unpaid_map,
+        outstanding_totals=outstanding_totals,
     )
 
 
@@ -1294,6 +1519,12 @@ def student_board():
         "message": "Последняя оплата была совсем недавно. Продолжай держать родителей в курсе расписания.",
         "suggestions": [],
     }
+    outstanding_sessions = [
+        lesson for lesson in upcoming_sessions if lesson.payment_status != "paid"
+    ]
+    outstanding_total = sum(
+        (lesson.fee_amount or Decimal("0")) for lesson in outstanding_sessions
+    )
     upcoming_week = [
         lesson
         for lesson in upcoming_sessions
@@ -1308,7 +1539,22 @@ def student_board():
     ]
     latest_material = materials[0] if materials else None
 
-    if not payments:
+    if outstanding_sessions:
+        payment_assistant.update(
+            {
+                "tone": "warning",
+                "headline": "Напомни родителям про оплату",
+                "message": (
+                    "Есть занятия без подтверждения оплаты."
+                    + (
+                        f" Всего {outstanding_total:,.0f} ₽.".replace(",", " ")
+                        if outstanding_total
+                        else ""
+                    )
+                ),
+            }
+        )
+    elif not payments:
         payment_assistant.update(
             {
                 "tone": "warning",
@@ -1326,7 +1572,11 @@ def student_board():
             + " ₽."
         )
 
-        if days_since_payment > 28:
+        if outstanding_sessions:
+            payment_assistant["tone"] = "warning"
+            payment_assistant["headline"] = "Пора уточнить оплату"
+            payment_assistant["message"] += " Есть занятия, которые ещё не закрыты по оплате."
+        elif days_since_payment > 28:
             payment_assistant["tone"] = "danger"
             payment_assistant["headline"] = "Напомни родителям про оплату"
             payment_assistant["message"] += " Прошёл почти месяц — самое время написать родителям."
@@ -1345,6 +1595,23 @@ def student_board():
                 "title": f"На этой неделе {len(upcoming_week)} урок(ов)",
                 "body": "Отправь родителям расписание и уточни, всё ли готово к занятиям.",
                 "tone": "info",
+            }
+        )
+
+    if outstanding_sessions:
+        payment_assistant["suggestions"].append(
+            {
+                "icon": "💰",
+                "title": "Попроси родителей подтвердить оплату",
+                "body": (
+                    f"Ожидает {len(outstanding_sessions)} урок(ов)"
+                    + (
+                        f" на {outstanding_total:,.0f} ₽.".replace(",", " ")
+                        if outstanding_total
+                        else "."
+                    )
+                ),
+                "tone": "warning",
             }
         )
 

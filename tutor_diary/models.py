@@ -84,6 +84,9 @@ class Session(db.Model):
     topic = db.Column(db.String(255), nullable=False)
     homework = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(50), default="scheduled", nullable=False)
+    fee_amount = db.Column(db.Numeric(10, 2), nullable=True)
+    payment_status = db.Column(db.String(20), nullable=False, default="unpaid")
+    payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -97,6 +100,8 @@ class Payment(db.Model):
     method = db.Column(db.String(50), nullable=False)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    sessions = db.relationship("Session", backref="payment", lazy=True)
 
 
 class Assignment(db.Model):

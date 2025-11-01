@@ -211,6 +211,14 @@
           {% else %}
             <p class="stack__meta">Оплаты ещё не зарегистрированы.</p>
           {% endif %}
+          {% if entry.outstanding_count %}
+            <p class="stack__meta">
+              Неоплачено {{ entry.outstanding_count }} занят{{ 'ий' if entry.outstanding_count > 4 else 'ия' if entry.outstanding_count > 1 else 'ие' }}
+              {% if entry.outstanding_total %}
+                · {{ '{:,.2f}'.format(entry.outstanding_total).replace(',', ' ') }} ₽
+              {% endif %}
+            </p>
+          {% endif %}
           <a class="link" href="{{ url_for('diary.student_detail', student_id=entry.student.id) }}">Карточка ученика</a>
         </li>
       {% endfor %}
