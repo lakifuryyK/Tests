@@ -1288,6 +1288,85 @@ def student_board():
             LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(3).all()
         )
 
+    payment_assistant = {
+        "tone": "info",
+        "headline": "Все платежи под контролем",
+        "message": "Последняя оплата была совсем недавно. Продолжай держать родителей в курсе расписания.",
+        "suggestions": [],
+    }
+    upcoming_week = [
+        lesson
+        for lesson in upcoming_sessions
+        if 0 <= (lesson.date - today).days <= 7
+    ]
+    assignments_due_soon = [
+        task
+        for task in assignments
+        if task.due_date
+        and task.status != "completed"
+        and 0 <= (task.due_date - today).days <= 3
+    ]
+    latest_material = materials[0] if materials else None
+
+    if not payments:
+        payment_assistant.update(
+            {
+                "tone": "warning",
+                "headline": "Оплат ещё не было",
+                "message": "Сообщи родителям о расписании и попроси заранее подтвердить оплату за занятия.",
+            }
+        )
+    else:
+        latest_payment = payments[0]
+        days_since_payment = (today - latest_payment.paid_on).days
+        payment_assistant["message"] = (
+            "Последняя оплата была "
+            f"{latest_payment.paid_on.strftime('%d.%m.%Y')} на сумму "
+            f"{latest_payment.amount:,.2f}".replace(",", " ")
+            + " ₽."
+        )
+
+        if days_since_payment > 28:
+            payment_assistant["tone"] = "danger"
+            payment_assistant["headline"] = "Напомни родителям про оплату"
+            payment_assistant["message"] += " Прошёл почти месяц — самое время написать родителям."
+        elif days_since_payment > 20:
+            payment_assistant["tone"] = "warning"
+            payment_assistant["headline"] = "Пора обновить статус оплаты"
+            payment_assistant["message"] += " Неделя занятий впереди — предупреди родителей заранее."
+        else:
+            payment_assistant["headline"] = "Отлично! Оплата свежая"
+            payment_assistant["message"] += " Просто напомни родителям перед ближайшими уроками."
+
+    if upcoming_week:
+        payment_assistant["suggestions"].append(
+            {
+                "icon": "📅",
+                "title": f"На этой неделе {len(upcoming_week)} урок(ов)",
+                "body": "Отправь родителям расписание и уточни, всё ли готово к занятиям.",
+                "tone": "info",
+            }
+        )
+
+    if assignments_due_soon:
+        payment_assistant["suggestions"].append(
+            {
+                "icon": "📝",
+                "title": "Есть задания со скорым дедлайном",
+                "body": "Расскажи родителям о важном домашнем задании, чтобы вместе спланировать время и оплату.",
+                "tone": "warning",
+            }
+        )
+    elif latest_material:
+        payment_assistant["suggestions"].append(
+            {
+                "icon": "📚",
+                "title": "Поделись новыми материалами",
+                "body": "Покажи родителям свежие материалы от преподавателя — так проще обсудить нужные платежи.",
+                "tone": "success",
+            }
+        )
+
     return render_template(
         "student_dashboard.html",
         student=student,
@@ -1308,6 +1387,7 @@ def student_board():
         next_year=next_year,
         subject_profile=subject_profile,
         library_preview=library_preview,
+        payment_assistant=payment_assistant,
     )
 
 

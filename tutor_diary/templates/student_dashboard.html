@@ -42,79 +42,114 @@
   </div>
 </section>
 
-<section class="grid grid--two">
-  <article class="panel">
-    <div class="panel__header">
-      <h2>Календарь месяца</h2>
-      <div class="calendar-nav">
-        <a class="chip" href="{{ url_for('diary.student_board', month=prev_month, year=prev_year) }}">‹</a>
-        <span>{{ month_label }} {{ target_year }}</span>
-        <a class="chip" href="{{ url_for('diary.student_board', month=next_month, year=next_year) }}">›</a>
-      </div>
+<section class="panel panel--calendar panel--student-calendar student-dashboard__calendar">
+  <div class="panel__header">
+    <h2>Календарь месяца</h2>
+    <div class="calendar-nav">
+      <a class="chip" href="{{ url_for('diary.student_board', month=prev_month, year=prev_year) }}">‹</a>
+      <span>{{ month_label }} {{ target_year }}</span>
+      <a class="chip" href="{{ url_for('diary.student_board', month=next_month, year=next_year) }}">›</a>
     </div>
-    <div class="calendar">
-      <div class="calendar__header">Пн</div>
-      <div class="calendar__header">Вт</div>
-      <div class="calendar__header">Ср</div>
-      <div class="calendar__header">Чт</div>
-      <div class="calendar__header">Пт</div>
-      <div class="calendar__header">Сб</div>
-      <div class="calendar__header">Вс</div>
-      {% for week in calendar_month %}
-        {% for day in week %}
-          {% if day %}
-            {% set lessons = sessions_by_day.get(day, []) %}
-            <div class="calendar__cell {% if lessons %}calendar__cell--busy{% endif %}">
-              <span class="calendar__date">{{ day.day }}</span>
-              {% if lessons %}
-                <ul class="calendar__list">
-                  {% for lesson in lessons %}
-                    <li>
-                      {{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.topic }}
-                    </li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-            </div>
-          {% else %}
-            <div class="calendar__cell calendar__cell--empty"></div>
-          {% endif %}
-        {% endfor %}
+  </div>
+  <div class="calendar">
+    <div class="calendar__header">Пн</div>
+    <div class="calendar__header">Вт</div>
+    <div class="calendar__header">Ср</div>
+    <div class="calendar__header">Чт</div>
+    <div class="calendar__header">Пт</div>
+    <div class="calendar__header">Сб</div>
+    <div class="calendar__header">Вс</div>
+    {% for week in calendar_month %}
+      {% for day in week %}
+        {% if day %}
+          {% set lessons = sessions_by_day.get(day, []) %}
+          <div class="calendar__cell {% if lessons %}calendar__cell--busy{% endif %}">
+            <span class="calendar__date">{{ day.day }}</span>
+            {% if lessons %}
+              <ul class="calendar__list">
+                {% for lesson in lessons %}
+                  <li>
+                    {{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.topic }}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="calendar__cell calendar__cell--empty"></div>
+        {% endif %}
       {% endfor %}
-    </div>
-  </article>
+    {% endfor %}
+  </div>
+</section>
 
-  <article class="panel">
+<section class="grid grid--two student-dashboard__secondary">
+  <article class="panel panel--student-materials">
     <div class="panel__header">
-      <h2>Последние оплаты</h2>
-      <a class="chip" href="{{ url_for('diary.student_materials') }}">Материалы</a>
+      <h2>Материалы от преподавателя</h2>
+      <a class="chip" href="{{ url_for('diary.student_materials') }}">Все материалы</a>
     </div>
-    {% if payments %}
+    {% if materials %}
       <ul class="stack">
-        {% for payment in payments %}
+        {% for material in materials %}
           <li class="stack__item">
-            <div class="stack__title">{{ payment.paid_on.strftime('%d.%m.%Y') }}</div>
-            <p class="stack__meta">{{ '{:,.2f}'.format(payment.amount).replace(',', ' ') }} ₽ · {{ payment.method }}</p>
-            {% if payment.notes %}<p class="stack__text">{{ payment.notes }}</p>{% endif %}
+            <div class="stack__title">{{ material.title }}</div>
+            {% if material.notes %}
+              <p class="stack__text">{{ material.notes }}</p>
+            {% endif %}
+            {% if material.url %}
+              <a class="link" href="{{ material.url }}" target="_blank" rel="noopener">Открыть</a>
+            {% endif %}
           </li>
         {% endfor %}
       </ul>
     {% else %}
-      <p class="muted">История оплат появится после первой транзакции.</p>
+      <p class="muted">Новых материалов пока нет — ожидайте обновлений от преподавателя.</p>
     {% endif %}
     <div class="panel__footer">
-      <h3>Материалы от преподавателя</h3>
-      {% if materials %}
-        <ul class="stack stack--mini">
-          {% for material in materials %}
+      <a class="btn btn--ghost" href="{{ url_for('diary.student_materials') }}">Перейти ко всем материалам</a>
+    </div>
+  </article>
+
+  <article class="panel panel--assistant">
+    <div class="panel__header">
+      <h2>Последние оплаты</h2>
+      <span class="chip chip--light">Помощник</span>
+    </div>
+    <div class="assistant assistant--{{ payment_assistant.tone }}">
+      <div class="assistant__avatar">🤖</div>
+      <div class="assistant__content">
+        <h3>{{ payment_assistant.headline }}</h3>
+        <p>{{ payment_assistant.message }}</p>
+      </div>
+    </div>
+    {% if payment_assistant.suggestions %}
+      <div class="assistant-grid">
+        {% for suggestion in payment_assistant.suggestions %}
+          <div class="assistant-card assistant-card--{{ suggestion.tone or payment_assistant.tone }}">
+            <div class="assistant-card__icon">{{ suggestion.icon }}</div>
+            <div class="assistant-card__body">
+              <h4>{{ suggestion.title }}</h4>
+              <p>{{ suggestion.body }}</p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    <div class="panel__section">
+      <h3>История оплат</h3>
+      {% if payments %}
+        <ul class="stack">
+          {% for payment in payments %}
             <li class="stack__item">
-              <div class="stack__title">{{ material.title }}</div>
-              {% if material.url %}<a class="link" href="{{ material.url }}" target="_blank">Открыть</a>{% endif %}
+              <div class="stack__title">{{ payment.paid_on.strftime('%d.%m.%Y') }}</div>
+              <p class="stack__meta">{{ '{:,.2f}'.format(payment.amount).replace(',', ' ') }} ₽ · {{ payment.method }}</p>
+              {% if payment.notes %}<p class="stack__text">{{ payment.notes }}</p>{% endif %}
             </li>
           {% endfor %}
         </ul>
       {% else %}
-        <p class="muted">Новых материалов пока нет.</p>
+        <p class="muted">История появится после первой оплаты — не забудь напомнить об этом родителям.</p>
       {% endif %}
     </div>
   </article>

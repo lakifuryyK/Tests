@@ -290,6 +290,46 @@ a {
   padding: 2.25rem;
 }
 
+.student-dashboard__calendar {
+  margin-bottom: 2.75rem;
+}
+
+.student-dashboard__secondary {
+  align-items: start;
+}
+
+.panel--student-calendar .calendar {
+  width: 100%;
+}
+
+.panel--student-calendar .panel__header {
+  align-items: flex-end;
+}
+
+.panel--student-materials .stack__item {
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.panel--student-materials .panel__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.panel--assistant {
+  display: grid;
+  gap: 1.75rem;
+}
+
+.panel__section {
+  display: grid;
+  gap: 1.15rem;
+  margin-top: 0.5rem;
+}
+
+.panel__section h3 {
+  margin: 0;
+}
+
 .panel--focus {
   display: flex;
   flex-direction: column;
