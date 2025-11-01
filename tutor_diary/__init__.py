@@ -35,8 +35,12 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.context_processor
     def inject_now():
         from datetime import datetime
+        from zoneinfo import ZoneInfo
 
-        return {"now": datetime.utcnow}
+        def now_moscow():
+            return datetime.now(ZoneInfo("Europe/Moscow"))
+
+        return {"now": now_moscow, "now_moscow": now_moscow}
 
     def ensure_admin_account() -> None:
         """Create the default admin account if it doesn't exist."""

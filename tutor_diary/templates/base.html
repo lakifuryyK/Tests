@@ -61,12 +61,22 @@
       {% endwith %}
       {% block content %}{% endblock %}
     </main>
+    {% set moscow_time = now_moscow() %}
     <footer class="footer">
-      <div>&copy; {{ now().year }} ОбразОн — дневник для репетитора и ученика</div>
-      <div class="footer__links">
-        <a href="#" class="footer__link">Политика конфиденциальности</a>
-        <a href="#" class="footer__link">Использование cookie</a>
+      <div class="footer__meta">
+        <span class="footer__time">
+          Московское время: {{ moscow_time.strftime('%d.%m.%Y %H:%M') }}
+        </span>
+        <span class="footer__copy">
+          &copy; {{ moscow_time.year }} ОбразОн — дневник для репетитора и ученика
+        </span>
       </div>
+      <nav class="footer__links">
+        <a href="#" class="footer__link">О нас</a>
+        <a href="#" class="footer__link">Правила площадки</a>
+        <a href="#" class="footer__link">Техническая поддержка</a>
+        <a href="#" class="footer__link">Отдел продаж</a>
+      </nav>
     </footer>
     {% block scripts %}{% endblock %}
     <div class="cookie-banner" data-cookie-banner>
