@@ -17,8 +17,7 @@
         <li>Все действия синхронизированы по московскому времени и доступны на любом устройстве.</li>
       </ul>
       <p class="login-screen__hint">
-        Стартовая пара для первого входа: <strong>admin / admin</strong>. После авторизации вы сможете
-        добавить преподавателей и учеников.
+        Если у вас нет доступа, свяжитесь с администратором ОбразОн для подключения учетной записи.
       </p>
     </div>
     <div class="login-card">
@@ -48,34 +47,50 @@
         </div>
         <div class="login-card__actions">
           <button type="submit" class="btn btn--primary btn--neon">Вход</button>
-          <button type="button" class="btn btn--ghost btn--neon-outline">Регистрация</button>
+          <button
+            type="button"
+            class="btn btn--ghost btn--neon-outline"
+            data-registration-button
+          >
+            Регистрация
+          </button>
         </div>
-      </form>
-      <div class="login-card__divider"><span>или</span></div>
-      <div class="login-card__social" aria-label="Войти при помощи социальных сетей">
-        <button type="button" class="social-btn social-btn--google">
-          <span class="social-btn__icon">G</span>
-          <span>Google</span>
-        </button>
-        <button type="button" class="social-btn social-btn--vk">
-          <span class="social-btn__icon">ВК</span>
-          <span>VK</span>
-        </button>
-        <button type="button" class="social-btn social-btn--telegram">
-          <span class="social-btn__icon">TG</span>
-          <span>Telegram</span>
-        </button>
-        <button type="button" class="social-btn social-btn--discord">
-          <span class="social-btn__icon">◎</span>
-          <span>Discord</span>
-        </button>
-      </div>
-      <footer class="login-card__footer">
-        <p>
-          Социальная авторизация и восстановление пароля появятся позже. Сейчас используйте базовые
-          учётные данные, чтобы попасть в систему.
+        <p
+          class="login-card__notice"
+          data-registration-notice
+          tabindex="-1"
+          hidden
+        >
+          Регистрация новых преподавателей проходит через отдел продаж. Свяжитесь с командой продаж, чтобы
+          подключить дополнительных пользователей.
         </p>
-      </footer>
+      </form>
     </div>
   </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const registrationButton = document.querySelector("[data-registration-button]");
+      const registrationNotice = document.querySelector("[data-registration-notice]");
+
+      if (!registrationButton || !registrationNotice) {
+        return;
+      }
+
+      registrationButton.addEventListener("click", () => {
+        if (registrationNotice.hidden) {
+          registrationNotice.hidden = false;
+        }
+
+        registrationNotice.classList.add("is-visible");
+
+        if (typeof registrationNotice.focus === "function") {
+          registrationNotice.focus();
+        }
+      });
+    });
+  </script>
 {% endblock %}
