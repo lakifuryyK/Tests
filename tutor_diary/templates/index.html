@@ -54,88 +54,86 @@
   </article>
 </section>
 
-<section class="grid grid--two">
-  <article class="panel panel--calendar">
-    <div class="panel__header">
-      <h2>Календарь преподавателя</h2>
-      <div class="calendar-nav">
-        <a class="chip" href="{{ url_for('diary.index', month=prev_month, year=prev_year) }}">‹</a>
-        <span>{{ month_label }} {{ target_year }}</span>
-        <a class="chip" href="{{ url_for('diary.index', month=next_month, year=next_year) }}">›</a>
-      </div>
+<section class="panel panel--calendar panel--calendar-wide">
+  <div class="panel__header">
+    <h2>Календарь преподавателя</h2>
+    <div class="calendar-nav">
+      <a class="chip" href="{{ url_for('diary.index', month=prev_month, year=prev_year) }}">‹</a>
+      <span>{{ month_label }} {{ target_year }}</span>
+      <a class="chip" href="{{ url_for('diary.index', month=next_month, year=next_year) }}">›</a>
     </div>
-    <div class="calendar calendar--xl">
-      <div class="calendar__header">Пн</div>
-      <div class="calendar__header">Вт</div>
-      <div class="calendar__header">Ср</div>
-      <div class="calendar__header">Чт</div>
-      <div class="calendar__header">Пт</div>
-      <div class="calendar__header">Сб</div>
-      <div class="calendar__header">Вс</div>
-      {% for week in calendar_month %}
-        {% for day in week %}
-          {% if day %}
-            {% set lessons = sessions_by_day.get(day, []) %}
-            <div class="calendar__cell {% if lessons %}calendar__cell--busy{% endif %}">
-              <span class="calendar__date">{{ day.day }}</span>
-              {% if lessons %}
-                <ul class="calendar__list">
-                  {% for lesson in lessons %}
-                    <li>
-                      {{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.student.full_name }}
-                    </li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-            </div>
-          {% else %}
-            <div class="calendar__cell calendar__cell--empty"></div>
-          {% endif %}
-        {% endfor %}
+  </div>
+  <div class="calendar calendar--xl">
+    <div class="calendar__header">Пн</div>
+    <div class="calendar__header">Вт</div>
+    <div class="calendar__header">Ср</div>
+    <div class="calendar__header">Чт</div>
+    <div class="calendar__header">Пт</div>
+    <div class="calendar__header">Сб</div>
+    <div class="calendar__header">Вс</div>
+    {% for week in calendar_month %}
+      {% for day in week %}
+        {% if day %}
+          {% set lessons = sessions_by_day.get(day, []) %}
+          <div class="calendar__cell {% if lessons %}calendar__cell--busy{% endif %}">
+            <span class="calendar__date">{{ day.day }}</span>
+            {% if lessons %}
+              <ul class="calendar__list">
+                {% for lesson in lessons %}
+                  <li>
+                    {{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.student.full_name }}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="calendar__cell calendar__cell--empty"></div>
+        {% endif %}
       {% endfor %}
-    </div>
-  </article>
+    {% endfor %}
+  </div>
+</section>
 
-  <article class="panel">
-    <div class="panel__header">
-      <h2>Фокус на неделю</h2>
-      <span class="chip chip--light">Помощник</span>
-    </div>
-    <h3>Сегодня</h3>
-    {% if sessions_today %}
+<section class="panel panel--focus">
+  <div class="panel__header">
+    <h2>Фокус на неделю</h2>
+    <span class="chip chip--light">Помощник</span>
+  </div>
+  <h3>Сегодня</h3>
+  {% if sessions_today %}
+    <ul class="stack stack--mini">
+      {% for lesson in sessions_today %}
+        <li class="stack__item">
+          <div class="stack__title">{{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.student.full_name }}</div>
+          <p class="stack__meta">{{ lesson.topic }}</p>
+          <a class="link" href="{{ url_for('diary.student_detail', student_id=lesson.student_id) }}">Карточка ученика</a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Сегодня занятий нет — можно подготовить материалы.</p>
+  {% endif %}
+
+  <div class="panel__footer">
+    <h3>Дедлайны на 7 дней</h3>
+    {% if assignments_due_soon %}
       <ul class="stack stack--mini">
-        {% for lesson in sessions_today %}
-          <li class="stack__item">
-            <div class="stack__title">{{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.student.full_name }}</div>
-            <p class="stack__meta">{{ lesson.topic }}</p>
-            <a class="link" href="{{ url_for('diary.student_detail', student_id=lesson.student_id) }}">Карточка ученика</a>
+        {% for assignment in assignments_due_soon %}
+          <li class="stack__item {% if assignment.status == 'completed' %}stack__item--done{% endif %}">
+            <div class="stack__title">{{ assignment.title }}</div>
+            <p class="stack__meta">
+              До {{ assignment.due_date.strftime('%d.%m') }} · {{ assignment.student.full_name }}
+            </p>
+            {% if assignment.description %}<p class="stack__text">{{ assignment.description }}</p>{% endif %}
+            <a class="link" href="{{ url_for('diary.student_detail', student_id=assignment.student_id) }}">Перейти к ученику</a>
           </li>
         {% endfor %}
       </ul>
     {% else %}
-      <p class="muted">Сегодня занятий нет — можно подготовить материалы.</p>
+      <p class="muted">Все задания под контролем — новых дедлайнов на неделе нет.</p>
     {% endif %}
-
-    <div class="panel__footer">
-      <h3>Дедлайны на 7 дней</h3>
-      {% if assignments_due_soon %}
-        <ul class="stack stack--mini">
-          {% for assignment in assignments_due_soon %}
-            <li class="stack__item {% if assignment.status == 'completed' %}stack__item--done{% endif %}">
-              <div class="stack__title">{{ assignment.title }}</div>
-              <p class="stack__meta">
-                До {{ assignment.due_date.strftime('%d.%m') }} · {{ assignment.student.full_name }}
-              </p>
-              {% if assignment.description %}<p class="stack__text">{{ assignment.description }}</p>{% endif %}
-              <a class="link" href="{{ url_for('diary.student_detail', student_id=assignment.student_id) }}">Перейти к ученику</a>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="muted">Все задания под контролем — новых дедлайнов на неделе нет.</p>
-      {% endif %}
-    </div>
-  </article>
+  </div>
 </section>
 
 <section class="panel panel--schedule">

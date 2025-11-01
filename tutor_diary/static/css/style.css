@@ -88,7 +88,7 @@ a {
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 2.5rem 2rem 4rem;
 }
@@ -286,14 +286,12 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
-.panel--calendar {
-  grid-column: 1 / -1;
+.panel--calendar-wide {
+  padding: 2.25rem;
 }
 
-@media (min-width: 1200px) {
-  .grid--two .panel--calendar {
-    grid-column: span 2;
-  }
+.panel--focus {
+  margin-top: 1.5rem;
 }
 
 .card,
@@ -992,27 +990,27 @@ textarea:focus {
 
 .calendar {
   display: grid;
-  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  grid-template-columns: repeat(7, minmax(140px, 1fr));
   gap: 0.75rem;
 }
 
 .calendar--xl {
-  gap: 1rem;
+  gap: 1.1rem;
 }
 
 .calendar--xl .calendar__cell,
 .panel--calendar .calendar__cell {
-  min-height: 190px;
+  min-height: 220px;
 }
 
 @media (min-width: 1200px) {
   .calendar {
-    grid-template-columns: repeat(7, minmax(140px, 1fr));
+    grid-template-columns: repeat(7, minmax(160px, 1fr));
   }
 
   .calendar--xl .calendar__cell,
   .panel--calendar .calendar__cell {
-    min-height: 230px;
+    min-height: 260px;
   }
 }
 
