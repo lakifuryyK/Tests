@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
@@ -6,9 +8,26 @@ try:  # Flask-Migrate is optional in local setups
 except ModuleNotFoundError:  # pragma: no cover - fallback for minimal installs
     Migrate = None  # type: ignore[assignment]
 
+try:  # zoneinfo is available in the stdlib but may miss tzdata on some OSes
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+except ImportError:  # pragma: no cover - keep compatibility with exotic Python builds
+    ZoneInfo = None  # type: ignore[assignment]
+    ZoneInfoNotFoundError = Exception  # type: ignore[assignment]
+
 
 db = SQLAlchemy()
 migrate = Migrate() if Migrate is not None else None
+
+
+def _resolve_moscow_timezone():
+    """Return a tzinfo for Europe/Moscow with a graceful fallback."""
+    if ZoneInfo is None:  # pragma: no cover - happens only on very old Python builds
+        return timezone(timedelta(hours=3))
+
+    try:
+        return ZoneInfo("Europe/Moscow")
+    except ZoneInfoNotFoundError:  # Windows & minimal installations without tzdata
+        return timezone(timedelta(hours=3))
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -32,13 +51,12 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     app.register_blueprint(diary_bp)
 
+    moscow_timezone = _resolve_moscow_timezone()
+
     @app.context_processor
     def inject_now():
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-
         def now_moscow():
-            return datetime.now(ZoneInfo("Europe/Moscow"))
+            return datetime.now(moscow_timezone)
 
         return {"now": now_moscow, "now_moscow": now_moscow}
 
