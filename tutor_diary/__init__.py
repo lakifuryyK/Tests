@@ -33,10 +33,26 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         return {"now": datetime.utcnow}
 
+    def ensure_admin_account() -> None:
+        """Create the default teacher account if it doesn't exist."""
+        from .models import Teacher
+
+        if not Teacher.query.filter_by(username="admin").first():
+            teacher = Teacher(username="admin")
+            teacher.set_password("admin")
+            db.session.add(teacher)
+            db.session.commit()
+
+    @app.before_first_request
+    def bootstrap() -> None:
+        db.create_all()
+        ensure_admin_account()
+
     @app.cli.command("init-db")
     def init_db() -> None:
         """Initialize the database with the required tables."""
         db.create_all()
+        ensure_admin_account()
         print("Initialized the database.")
 
     return app

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Мой кабинет | Дневник репетитора{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>{{ student.full_name }}</h1>
+    <p class="muted">{% if student.subject %}Предмет: {{ student.subject }} · {% endif %}Доступ открыт преподавателем.</p>
+    {% if student.notes %}
+      <div class="card card--nested">
+        <h2>Заметки преподавателя</h2>
+        <p>{{ student.notes }}</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="grid two-columns">
+    <div class="card">
+      <h2>Предстоящие занятия</h2>
+      {% if upcoming_sessions %}
+        <ul class="list">
+          {% for session_item in upcoming_sessions %}
+            <li>
+              <div class="list__title">{{ session_item.date.strftime('%d.%m.%Y') }} · {{ session_item.start_time.strftime('%H:%M') }}</div>
+              <div class="list__subtitle">Тема: {{ session_item.topic }}</div>
+              {% if session_item.homework %}
+                <div class="list__meta">Домашнее задание: {{ session_item.homework }}</div>
+              {% endif %}
+              <span class="status status--{{ session_item.status }}">{{ session_item.status|title }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Пока нет запланированных занятий.</p>
+      {% endif %}
+    </div>
+    <div class="card">
+      <h2>Последние оплаты</h2>
+      {% if payments %}
+        <ul class="list">
+          {% for payment in payments %}
+            <li>
+              <div class="list__title">{{ payment.paid_on.strftime('%d.%m.%Y') }}</div>
+              <div class="list__subtitle">{{ '{:.2f}'.format(payment.amount) }} ₽ · {{ payment.method }}</div>
+              {% if payment.notes %}
+                <div class="list__meta">{{ payment.notes }}</div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Оплат пока нет.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Прошедшие уроки</h2>
+    {% if past_sessions %}
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Тема</th>
+              <th>Домашнее задание</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for session_item in past_sessions %}
+              <tr>
+                <td>{{ session_item.date.strftime('%d.%m.%Y') }}</td>
+                <td>{{ session_item.topic }}</td>
+                <td>{% if session_item.homework %}{{ session_item.homework }}{% else %}—{% endif %}</td>
+                <td>{{ session_item.status|title }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">Уроков пока не было.</p>
+    {% endif %}
+  </section>
+{% endblock %}

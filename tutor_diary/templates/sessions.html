@@ -72,7 +72,7 @@
         <td>{{ session.topic }}</td>
         <td>{{ session.homework or '—' }}</td>
         <td>{{ session.duration_minutes }} мин</td>
-        <td class="status status--{{ session.status }}">{{ session.status }}</td>
+        <td class="status status--{{ session.status }}">{{ session.status|title }}</td>
       </tr>
       {% endfor %}
     </tbody>

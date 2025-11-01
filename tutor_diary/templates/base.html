@@ -11,18 +11,26 @@
     <header class="navbar">
       <div class="navbar__brand">Дневник репетитора</div>
       <nav class="navbar__menu">
-        <a href="{{ url_for('diary.index') }}">Главная</a>
-        <a href="{{ url_for('diary.manage_students') }}">Ученики</a>
-        <a href="{{ url_for('diary.manage_sessions') }}">Занятия</a>
-        <a href="{{ url_for('diary.manage_payments') }}">Платежи</a>
+        {% if session.get('role') == 'teacher' %}
+          <a href="{{ url_for('diary.index') }}">Главная</a>
+          <a href="{{ url_for('diary.manage_students') }}">Ученики</a>
+          <a href="{{ url_for('diary.manage_sessions') }}">Занятия</a>
+          <a href="{{ url_for('diary.manage_payments') }}">Платежи</a>
+          <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
+        {% elif session.get('role') == 'student' %}
+          <a href="{{ url_for('diary.student_board') }}">Мой кабинет</a>
+          <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
+        {% else %}
+          <a href="{{ url_for('diary.login') }}">Вход</a>
+        {% endif %}
       </nav>
     </header>
     <main class="container">
-      {% with messages = get_flashed_messages() %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          <div class="alert">
-            {% for message in messages %}
-              <p>{{ message }}</p>
+          <div class="alerts">
+            {% for category, message in messages %}
+              <div class="alert alert--{{ category }}">{{ message }}</div>
             {% endfor %}
           </div>
         {% endif %}

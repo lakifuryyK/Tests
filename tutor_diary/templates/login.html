@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Вход | Дневник репетитора{% endblock %}
+
+{% block content %}
+  <section class="card auth-card">
+    <h1>Вход</h1>
+    <p class="auth-card__hint">Используйте учетные данные преподавателя или ученика.</p>
+    <form method="post" class="form-grid">
+      <div class="form-row">
+        <label>Кто вы?</label>
+        <div class="radio-group">
+          <label><input type="radio" name="role" value="teacher" required /> Преподаватель</label>
+          <label><input type="radio" name="role" value="student" /> Ученик</label>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="username">Логин</label>
+        <input id="username" name="username" type="text" placeholder="Введите логин" required />
+      </div>
+      <div class="form-row">
+        <label for="password">Пароль</label>
+        <input id="password" name="password" type="password" placeholder="Введите пароль" required />
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn--primary">Войти</button>
+      </div>
+      <p class="auth-card__hint auth-card__hint--small">Логин преподавателя: <strong>admin</strong>, пароль: <strong>admin</strong>.</p>
+    </form>
+  </section>
+{% endblock %}

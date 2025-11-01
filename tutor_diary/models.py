@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from . import db
 
 
@@ -10,6 +12,8 @@ class Student(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     full_name = db.Column(db.String(120), nullable=False)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     subject = db.Column(db.String(120), nullable=True)
     contact_info = db.Column(db.String(255), nullable=True)
     notes = db.Column(db.Text, nullable=True)
@@ -17,6 +21,12 @@ class Student(db.Model):
 
     sessions = db.relationship("Session", backref="student", lazy=True)
     payments = db.relationship("Payment", backref="student", lazy=True)
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
 
 
 class Session(db.Model):
@@ -43,3 +53,18 @@ class Payment(db.Model):
     method = db.Column(db.String(50), nullable=False)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Teacher(db.Model):
+    __tablename__ = "teachers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)

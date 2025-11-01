@@ -3,10 +3,19 @@
 {% block content %}
 <section class="panel">
   <h2>Добавить ученика</h2>
+  <p class="muted">Вы можете добавить не более 10 учеников. Данные для входа передайте ученику.</p>
   <form method="post" class="form">
     <div class="form__row">
       <label for="full_name">ФИО</label>
       <input type="text" id="full_name" name="full_name" required />
+    </div>
+    <div class="form__row">
+      <label for="username">Логин для ученика</label>
+      <input type="text" id="username" name="username" placeholder="Например, ivanov" required />
+    </div>
+    <div class="form__row">
+      <label for="password">Пароль</label>
+      <input type="password" id="password" name="password" required />
     </div>
     <div class="form__row">
       <label for="subject">Предмет</label>
@@ -30,6 +39,7 @@
     <thead>
       <tr>
         <th>ФИО</th>
+        <th>Логин</th>
         <th>Предмет</th>
         <th>Контакты</th>
         <th>Заметки</th>
@@ -40,6 +50,7 @@
       {% for student in students %}
       <tr>
         <td>{{ student.full_name }}</td>
+        <td>{{ student.username }}</td>
         <td>{{ student.subject or '—' }}</td>
         <td>{{ student.contact_info or '—' }}</td>
         <td>{{ student.notes or '—' }}</td>
