@@ -1,36 +1,74 @@
 {% extends "base.html" %}
 {% block title %}Главная — Дневник репетитора{% endblock %}
 {% block content %}
-<section class="grid">
-  <article class="card">
+<section class="dashboard-intro">
+  <div class="dashboard-intro__content">
+    <h1>Здравствуйте, преподаватель!</h1>
+    <p>
+      Управляйте занятиями, домашними заданиями и материалами в одном месте. Внизу — ключевые
+      показатели по вашему учебному потоку.
+    </p>
+    <div class="dashboard-intro__cta">
+      <a class="btn btn--primary" href="{{ url_for('diary.manage_students') }}">Добавить ученика</a>
+      <a class="btn btn--ghost" href="{{ url_for('diary.manage_sessions') }}">Запланировать урок</a>
+    </div>
+  </div>
+  <div class="dashboard-intro__art" aria-hidden="true">
+    <div class="orbit">
+      <span class="orbit__planet"></span>
+      <span class="orbit__satellite"></span>
+    </div>
+  </div>
+</section>
+
+<section class="grid grid--stats">
+  <article class="card card--gradient">
     <h2>Ученики</h2>
     <p class="card__value">{{ student_count }}</p>
-    <a class="card__link" href="{{ url_for('diary.manage_students') }}">Перейти к списку</a>
+    <p class="card__meta">Активные ученики в системе</p>
   </article>
-  <article class="card">
+  <article class="card card--gradient">
     <h2>Занятия</h2>
     <p class="card__value">{{ session_count }}</p>
-    <a class="card__link" href="{{ url_for('diary.manage_sessions') }}">Планировать</a>
+    <p class="card__meta">Количество уроков в базе</p>
   </article>
-  <article class="card">
+  <article class="card card--gradient">
     <h2>Оплачено</h2>
     <p class="card__value">{{ '{:,.2f}'.format(payment_total).replace(',', ' ') }} ₽</p>
-    <a class="card__link" href="{{ url_for('diary.manage_payments') }}">Учёт платежей</a>
+    <p class="card__meta">Сумма подтверждённых оплат</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Дедлайны</h2>
+    <p class="card__value">{{ assignments_open }}</p>
+    <p class="card__meta">Незакрытые домашние задания</p>
   </article>
 </section>
-<section class="panel">
-  <h2>Ближайшие занятия</h2>
+
+<section class="panel panel--schedule">
+  <div class="panel__header">
+    <h2>Ближайшие занятия</h2>
+    <a class="chip" href="{{ url_for('diary.manage_sessions') }}">Все занятия</a>
+  </div>
   {% if upcoming_sessions %}
-  <ul class="list">
-    {% for session in upcoming_sessions %}
-    <li>
-      <strong>{{ session.date.strftime('%d.%m.%Y') }} {{ session.start_time.strftime('%H:%M') }}</strong>
-      — {{ session.student.full_name }} ({{ session.topic }})
-    </li>
-    {% endfor %}
-  </ul>
+    <ul class="timeline">
+      {% for session in upcoming_sessions %}
+        <li class="timeline__item">
+          <div class="timeline__date">
+            <span>{{ session.date.strftime('%d.%m') }}</span>
+            <small>{{ session.start_time.strftime('%H:%M') }}</small>
+          </div>
+          <div class="timeline__content">
+            <h3>{{ session.student.full_name }}</h3>
+            <p>{{ session.topic }}</p>
+            {% if session.homework %}
+              <p class="timeline__homework">ДЗ: {{ session.homework }}</p>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
   {% else %}
-  <p>Нет запланированных занятий.</p>
+    <p>Нет запланированных занятий.</p>
   {% endif %}
 </section>
 {% endblock %}

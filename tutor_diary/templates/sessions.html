@@ -1,84 +1,95 @@
 {% extends "base.html" %}
 {% block title %}Занятия — Дневник репетитора{% endblock %}
 {% block content %}
-<section class="panel">
-  <h2>Запланировать занятие</h2>
+<section class="panel panel--form">
+  <div>
+    <h2>Запланировать занятие</h2>
+    <p class="muted">
+      Создайте урок, чтобы он появился в календарях ученика и в вашем списке ближайших занятий.
+    </p>
+  </div>
   {% if students %}
-  <form method="post" class="form">
-    <div class="form__row">
-      <label for="student_id">Ученик</label>
-      <select id="student_id" name="student_id" required>
-        <option value="" disabled selected>Выберите ученика</option>
-        {% for student in students %}
-        <option value="{{ student.id }}">{{ student.full_name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form__row form__row--inline">
-      <div>
-        <label for="date">Дата</label>
-        <input type="date" id="date" name="date" required />
+    <form method="post" class="form form--grid">
+      <label class="form__field">
+        <span>Ученик</span>
+        <select name="student_id" required>
+          <option value="" disabled selected>Выберите ученика</option>
+          {% for student in students %}
+            <option value="{{ student.id }}">{{ student.full_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Дата</span>
+        <input type="date" name="date" required />
+      </label>
+      <label class="form__field">
+        <span>Время</span>
+        <input type="time" name="start_time" required />
+      </label>
+      <label class="form__field">
+        <span>Длительность (мин)</span>
+        <input type="number" name="duration_minutes" min="15" step="15" value="60" required />
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Тема занятия</span>
+        <input type="text" name="topic" placeholder="Например, Подготовка к ЕГЭ" required />
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Домашнее задание</span>
+        <textarea name="homework" rows="3" placeholder="Опишите задание (необязательно)"></textarea>
+      </label>
+      <label class="form__field">
+        <span>Статус</span>
+        <select name="status">
+          <option value="scheduled">Запланировано</option>
+          <option value="completed">Проведено</option>
+          <option value="cancelled">Отменено</option>
+        </select>
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Добавить занятие</button>
       </div>
-      <div>
-        <label for="start_time">Время</label>
-        <input type="time" id="start_time" name="start_time" required />
-      </div>
-      <div>
-        <label for="duration_minutes">Длительность (мин)</label>
-        <input type="number" id="duration_minutes" name="duration_minutes" min="15" step="15" value="60" required />
-      </div>
-    </div>
-    <div class="form__row">
-      <label for="topic">Тема занятия</label>
-      <input type="text" id="topic" name="topic" required />
-    </div>
-    <div class="form__row">
-      <label for="homework">Домашнее задание</label>
-      <textarea id="homework" name="homework" rows="3"></textarea>
-    </div>
-    <div class="form__row">
-      <label for="status">Статус</label>
-      <select id="status" name="status">
-        <option value="scheduled">Запланировано</option>
-        <option value="completed">Проведено</option>
-        <option value="cancelled">Отменено</option>
-      </select>
-    </div>
-    <button type="submit" class="button">Добавить занятие</button>
-  </form>
+    </form>
   {% else %}
-  <p>Чтобы запланировать занятие, добавьте хотя бы одного ученика.</p>
+    <p class="muted">Чтобы запланировать занятие, добавьте хотя бы одного ученика.</p>
   {% endif %}
 </section>
+
 <section class="panel">
-  <h2>История занятий</h2>
+  <div class="panel__header">
+    <h2>История занятий</h2>
+    <span class="chip">{{ sessions|length }} записей</span>
+  </div>
   {% if sessions %}
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Дата</th>
-        <th>Ученик</th>
-        <th>Тема</th>
-        <th>Домашнее задание</th>
-        <th>Длительность</th>
-        <th>Статус</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for session in sessions %}
-      <tr>
-        <td>{{ session.date.strftime('%d.%m.%Y') }} {{ session.start_time.strftime('%H:%M') }}</td>
-        <td>{{ session.student.full_name }}</td>
-        <td>{{ session.topic }}</td>
-        <td>{{ session.homework or '—' }}</td>
-        <td>{{ session.duration_minutes }} мин</td>
-        <td class="status status--{{ session.status }}">{{ session.status|title }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <div class="table-wrapper">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            <th>Дата и время</th>
+            <th>Ученик</th>
+            <th>Тема</th>
+            <th>Домашнее задание</th>
+            <th>Длительность</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for session in sessions %}
+            <tr>
+              <td>{{ session.date.strftime('%d.%m.%Y') }} {{ session.start_time.strftime('%H:%M') }}</td>
+              <td>{{ session.student.full_name }}</td>
+              <td>{{ session.topic }}</td>
+              <td>{{ session.homework or '—' }}</td>
+              <td>{{ session.duration_minutes }} мин</td>
+              <td><span class="status status--{{ session.status }}">{{ session.status|title }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   {% else %}
-  <p>Здесь появятся занятия после создания.</p>
+    <p class="muted">Здесь появятся занятия после создания.</p>
   {% endif %}
 </section>
 {% endblock %}

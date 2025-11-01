@@ -1,66 +1,85 @@
 {% extends "base.html" %}
 {% block title %}Ученики — Дневник репетитора{% endblock %}
 {% block content %}
-<section class="panel">
-  <h2>Добавить ученика</h2>
-  <p class="muted">Вы можете добавить не более 10 учеников. Данные для входа передайте ученику.</p>
-  <form method="post" class="form">
-    <div class="form__row">
-      <label for="full_name">ФИО</label>
-      <input type="text" id="full_name" name="full_name" required />
+<section class="panel panel--form">
+  <div>
+    <h2>Добавить ученика</h2>
+    <p class="muted">
+      Вы можете добавить не более 10 учеников. Передайте логин и пароль ученику, чтобы он получил
+      доступ к личному кабинету.
+    </p>
+  </div>
+  <form method="post" class="form form--grid">
+    <label class="form__field">
+      <span>ФИО</span>
+      <input type="text" name="full_name" placeholder="Иванов Иван" required />
+    </label>
+    <label class="form__field">
+      <span>Логин ученика</span>
+      <input type="text" name="username" placeholder="ivanov" required />
+    </label>
+    <label class="form__field">
+      <span>Пароль</span>
+      <input type="password" name="password" placeholder="Придумайте пароль" required />
+    </label>
+    <label class="form__field">
+      <span>Предмет</span>
+      <input type="text" name="subject" placeholder="Математика" />
+    </label>
+    <label class="form__field">
+      <span>Контакты</span>
+      <input type="text" name="contact_info" placeholder="Телефон или email" />
+    </label>
+    <label class="form__field form__field--wide">
+      <span>Заметки</span>
+      <textarea name="notes" rows="3" placeholder="Например, цель обучения"></textarea>
+    </label>
+    <div class="form__actions">
+      <button type="submit" class="btn btn--primary">Сохранить</button>
     </div>
-    <div class="form__row">
-      <label for="username">Логин для ученика</label>
-      <input type="text" id="username" name="username" placeholder="Например, ivanov" required />
-    </div>
-    <div class="form__row">
-      <label for="password">Пароль</label>
-      <input type="password" id="password" name="password" required />
-    </div>
-    <div class="form__row">
-      <label for="subject">Предмет</label>
-      <input type="text" id="subject" name="subject" placeholder="Например, математика" />
-    </div>
-    <div class="form__row">
-      <label for="contact_info">Контакты</label>
-      <input type="text" id="contact_info" name="contact_info" placeholder="Телефон или email" />
-    </div>
-    <div class="form__row">
-      <label for="notes">Заметки</label>
-      <textarea id="notes" name="notes" rows="3"></textarea>
-    </div>
-    <button type="submit" class="button">Сохранить</button>
   </form>
 </section>
+
 <section class="panel">
-  <h2>Список учеников</h2>
+  <div class="panel__header">
+    <h2>Ученики</h2>
+    <span class="chip">{{ students|length }} из 10</span>
+  </div>
   {% if students %}
-  <table class="table">
-    <thead>
-      <tr>
-        <th>ФИО</th>
-        <th>Логин</th>
-        <th>Предмет</th>
-        <th>Контакты</th>
-        <th>Заметки</th>
-        <th>Создан</th>
-      </tr>
-    </thead>
-    <tbody>
+    <div class="student-grid">
       {% for student in students %}
-      <tr>
-        <td>{{ student.full_name }}</td>
-        <td>{{ student.username }}</td>
-        <td>{{ student.subject or '—' }}</td>
-        <td>{{ student.contact_info or '—' }}</td>
-        <td>{{ student.notes or '—' }}</td>
-        <td>{{ student.created_at.strftime('%d.%m.%Y') }}</td>
-      </tr>
+        <article class="student-card">
+          <header class="student-card__header">
+            <h3>{{ student.full_name }}</h3>
+            <span class="student-card__subject">{{ student.subject or 'Без предмета' }}</span>
+          </header>
+          <dl class="student-card__meta">
+            <div>
+              <dt>Логин</dt>
+              <dd>{{ student.username }}</dd>
+            </div>
+            <div>
+              <dt>Контакты</dt>
+              <dd>{{ student.contact_info or '—' }}</dd>
+            </div>
+            <div>
+              <dt>Добавлен</dt>
+              <dd>{{ student.created_at.strftime('%d.%m.%Y') }}</dd>
+            </div>
+          </dl>
+          {% if student.notes %}
+            <p class="student-card__notes">{{ student.notes }}</p>
+          {% endif %}
+          <footer class="student-card__footer">
+            <a class="btn btn--ghost" href="{{ url_for('diary.student_detail', student_id=student.id) }}">
+              Управлять
+            </a>
+          </footer>
+        </article>
       {% endfor %}
-    </tbody>
-  </table>
+    </div>
   {% else %}
-  <p>Добавьте первого ученика, чтобы начать работу.</p>
+    <p>Добавьте первого ученика, чтобы начать работу.</p>
   {% endif %}
 </section>
 {% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Материалы — {{ student.full_name }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Материалы для обучения</h1>
+    <p class="muted">Здесь собраны презентации, ссылки и дополнительные ресурсы от преподавателя.</p>
+  </div>
+</section>
+<section class="panel">
+  {% if materials %}
+    <div class="materials-grid">
+      {% for material in materials %}
+        <article class="material-card">
+          <header class="material-card__header">
+            <h3>{{ material.title }}</h3>
+            <span class="chip chip--light">{{ material.created_at.strftime('%d.%m.%Y') }}</span>
+          </header>
+          {% if material.notes %}<p class="material-card__text">{{ material.notes }}</p>{% endif %}
+          {% if material.url %}
+            <a class="btn btn--primary" href="{{ material.url }}" target="_blank">Открыть</a>
+          {% else %}
+            <p class="muted">Ссылка отсутствует — уточните у преподавателя.</p>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Пока нет загруженных материалов.</p>
+  {% endif %}
+</section>
+{% endblock %}

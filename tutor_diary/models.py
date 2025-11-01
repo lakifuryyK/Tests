@@ -19,8 +19,17 @@ class Student(db.Model):
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    sessions = db.relationship("Session", backref="student", lazy=True)
-    payments = db.relationship("Payment", backref="student", lazy=True)
+    sessions = db.relationship("Session", backref="student", lazy=True, cascade="all, delete-orphan")
+    payments = db.relationship("Payment", backref="student", lazy=True, cascade="all, delete-orphan")
+    assignments = db.relationship(
+        "Assignment", backref="student", lazy=True, cascade="all, delete-orphan"
+    )
+    materials = db.relationship(
+        "Material", backref="student", lazy=True, cascade="all, delete-orphan"
+    )
+    messages = db.relationship(
+        "ChatMessage", backref="student", lazy=True, cascade="all, delete-orphan"
+    )
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
@@ -52,6 +61,39 @@ class Payment(db.Model):
     paid_on = db.Column(db.Date, default=datetime.utcnow, nullable=False)
     method = db.Column(db.String(50), nullable=False)
     notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Assignment(db.Model):
+    __tablename__ = "assignments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(50), default="assigned", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Material(db.Model):
+    __tablename__ = "materials"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ChatMessage(db.Model):
+    __tablename__ = "chat_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    sender = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
