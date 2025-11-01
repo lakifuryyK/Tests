@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}Дневник репетитора{% endblock %}</title>
+    <title>{% block title %}ОбразОн{% endblock %}</title>
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@600&display=swap"
@@ -13,8 +13,8 @@
   <body>
     <header class="navbar">
       <div class="navbar__brand">
-        <span class="navbar__logo">✦</span>
-        <span class="navbar__title">Дневник репетитора</span>
+        <span class="navbar__logo" aria-hidden="true">✦</span>
+        <span class="navbar__title">ОбразОн</span>
       </div>
       <nav class="navbar__menu">
         {% if session.get('role') == 'teacher' %}
@@ -47,7 +47,7 @@
       {% block content %}{% endblock %}
     </main>
     <footer class="footer">
-      <div>&copy; {{ now().year }} Личный кабинет репетитора</div>
+      <div>&copy; {{ now().year }} ОбразОн — дневник для репетитора и ученика</div>
       <div class="footer__links">
         <a href="#" class="footer__link">Политика конфиденциальности</a>
         <a href="#" class="footer__link">Использование cookie</a>

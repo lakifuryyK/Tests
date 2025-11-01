@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Вход | Дневник репетитора{% endblock %}
+{% block title %}Вход | ОбразОн{% endblock %}
 
 {% block content %}
   <section class="hero">
     <div>
-      <h1>Вход в дневник</h1>
+      <h1>Вход в «ОбразОн»</h1>
       <p class="muted">
-        Используйте учётные данные преподавателя или ученика, чтобы попасть в личный кабинет.
+        Введите логин и пароль. Система автоматически определит, являетесь ли вы преподавателем или
+        учеником.
       </p>
       <p class="muted">Стартовые данные преподавателя: логин <strong>admin</strong>, пароль <strong>admin</strong>.</p>
     </div>
@@ -15,16 +16,9 @@
   <section class="panel panel--form">
     <div>
       <h2>Авторизация</h2>
-      <p class="muted">Выберите роль и введите логин с паролем.</p>
+      <p class="muted">Введите данные вашей учётной записи.</p>
     </div>
     <form method="post" class="form form--grid">
-      <div class="form__field form__field--wide">
-        <span>Кто вы?</span>
-        <div class="radio-group">
-          <label><input type="radio" name="role" value="teacher" required /> Преподаватель</label>
-          <label><input type="radio" name="role" value="student" /> Ученик</label>
-        </div>
-      </div>
       <label class="form__field">
         <span>Логин</span>
         <input name="username" type="text" placeholder="Введите логин" required />

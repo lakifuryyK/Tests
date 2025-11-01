@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from calendar import Calendar
-from datetime import date, datetime
+from calendar import Calendar, monthrange
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from flask import (
@@ -23,6 +23,21 @@ bp = Blueprint("diary", __name__)
 
 TEACHER_ROLE = "teacher"
 STUDENT_ROLE = "student"
+
+MONTH_NAMES = {
+    1: "Январь",
+    2: "Февраль",
+    3: "Март",
+    4: "Апрель",
+    5: "Май",
+    6: "Июнь",
+    7: "Июль",
+    8: "Август",
+    9: "Сентябрь",
+    10: "Октябрь",
+    11: "Ноябрь",
+    12: "Декабрь",
+}
 
 
 def login_required(role: str):
@@ -47,14 +62,82 @@ def index():
     if role != TEACHER_ROLE:
         return redirect(url_for("diary.login"))
 
+    today = datetime.utcnow().date()
     student_count = Student.query.count()
     session_count = Session.query.count()
     payment_total = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar()
     assignments_open = Assignment.query.filter(Assignment.status != "completed").count()
     upcoming_sessions = (
-        Session.query.filter(Session.date >= datetime.utcnow().date())
-        .order_by(Session.date.asc())
+        Session.query.filter(Session.date >= today)
+        .order_by(Session.date.asc(), Session.start_time.asc())
         .limit(5)
+        .all()
+    )
+
+    target_year = request.args.get("year", type=int) or today.year
+    target_month = request.args.get("month", type=int) or today.month
+    if target_month < 1:
+        target_month = 12
+        target_year -= 1
+    elif target_month > 12:
+        target_month = 1
+        target_year += 1
+
+    month_label = MONTH_NAMES[target_month]
+    prev_month = 12 if target_month == 1 else target_month - 1
+    prev_year = target_year - 1 if target_month == 1 else target_year
+    next_month = 1 if target_month == 12 else target_month + 1
+    next_year = target_year + 1 if target_month == 12 else target_year
+
+    calendar_builder = Calendar(firstweekday=0)
+    calendar_month: list[list[date | None]] = []
+    for week in calendar_builder.monthdatescalendar(target_year, target_month):
+        calendar_month.append([day if day.month == target_month else None for day in week])
+
+    first_day = date(target_year, target_month, 1)
+    last_day = date(target_year, target_month, monthrange(target_year, target_month)[1])
+    calendar_sessions = (
+        Session.query.filter(Session.date >= first_day, Session.date <= last_day)
+        .order_by(Session.date.asc(), Session.start_time.asc())
+        .all()
+    )
+    sessions_by_day: dict[date, list[Session]] = {}
+    for lesson in calendar_sessions:
+        sessions_by_day.setdefault(lesson.date, []).append(lesson)
+
+    assignments_due_soon = (
+        Assignment.query.filter(
+            Assignment.status != "completed",
+            Assignment.due_date.isnot(None),
+            Assignment.due_date >= today,
+            Assignment.due_date <= today + timedelta(days=7),
+        )
+        .order_by(Assignment.due_date.asc(), Assignment.title.asc())
+        .all()
+    )
+
+    thirty_days_ago = today - timedelta(days=30)
+    students_needing_attention: list[dict[str, object]] = []
+    for student in Student.query.order_by(Student.full_name.asc()).all():
+        last_payment = (
+            Payment.query.filter_by(student_id=student.id)
+            .order_by(Payment.paid_on.desc())
+            .first()
+        )
+        if not last_payment or last_payment.paid_on < thirty_days_ago:
+            days_since = (today - last_payment.paid_on).days if last_payment else None
+            students_needing_attention.append(
+                {
+                    "student": student,
+                    "last_payment": last_payment,
+                    "days_since": days_since,
+                }
+            )
+
+    students_needing_attention = students_needing_attention[:5]
+    sessions_today = (
+        Session.query.filter(Session.date == today)
+        .order_by(Session.start_time.asc())
         .all()
     )
 
@@ -65,6 +148,18 @@ def index():
         payment_total=payment_total,
         upcoming_sessions=upcoming_sessions,
         assignments_open=assignments_open,
+        calendar_month=calendar_month,
+        month_label=month_label,
+        target_year=target_year,
+        target_month=target_month,
+        prev_month=prev_month,
+        prev_year=prev_year,
+        next_month=next_month,
+        next_year=next_year,
+        sessions_by_day=sessions_by_day,
+        assignments_due_soon=assignments_due_soon,
+        students_needing_attention=students_needing_attention,
+        sessions_today=sessions_today,
     )
 
 
@@ -246,30 +341,26 @@ def manage_payments():
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        role = request.form.get("role")
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
-        if role == TEACHER_ROLE:
-            teacher = Teacher.query.filter_by(username=username).first()
-            if teacher and teacher.check_password(password):
-                session.clear()
-                session["role"] = TEACHER_ROLE
-                session["teacher_id"] = teacher.id
-                flash("Добро пожаловать, преподаватель!", "success")
-                return redirect(url_for("diary.index"))
-            flash("Неверный логин или пароль преподавателя.", "danger")
-        elif role == STUDENT_ROLE:
-            student = Student.query.filter_by(username=username).first()
-            if student and student.check_password(password):
-                session.clear()
-                session["role"] = STUDENT_ROLE
-                session["student_id"] = student.id
-                flash("Добро пожаловать в личный кабинет!", "success")
-                return redirect(url_for("diary.student_board"))
-            flash("Неверные данные ученика.", "danger")
-        else:
-            flash("Выберите тип пользователя.", "warning")
+        teacher = Teacher.query.filter_by(username=username).first()
+        if teacher and teacher.check_password(password):
+            session.clear()
+            session["role"] = TEACHER_ROLE
+            session["teacher_id"] = teacher.id
+            flash("Добро пожаловать, преподаватель!", "success")
+            return redirect(url_for("diary.index"))
+
+        student = Student.query.filter_by(username=username).first()
+        if student and student.check_password(password):
+            session.clear()
+            session["role"] = STUDENT_ROLE
+            session["student_id"] = student.id
+            flash("Добро пожаловать в личный кабинет!", "success")
+            return redirect(url_for("diary.student_board"))
+
+        flash("Не удалось войти: проверьте логин и пароль.", "danger")
 
     return render_template("login.html")
 
@@ -306,28 +397,13 @@ def student_board():
 
     target_year = request.args.get("year", type=int) or today.year
     target_month = request.args.get("month", type=int) or today.month
-    month_names = {
-        1: "Январь",
-        2: "Февраль",
-        3: "Март",
-        4: "Апрель",
-        5: "Май",
-        6: "Июнь",
-        7: "Июль",
-        8: "Август",
-        9: "Сентябрь",
-        10: "Октябрь",
-        11: "Ноябрь",
-        12: "Декабрь",
-    }
-
     if target_month < 1:
         target_month = 12
         target_year -= 1
     elif target_month > 12:
         target_month = 1
         target_year += 1
-    month_label = month_names[target_month]
+    month_label = MONTH_NAMES[target_month]
     prev_month = 12 if target_month == 1 else target_month - 1
     prev_year = target_year - 1 if target_month == 1 else target_year
     next_month = 1 if target_month == 12 else target_month + 1
@@ -337,9 +413,12 @@ def student_board():
     for week in calendar_builder.monthdatescalendar(target_year, target_month):
         calendar_month.append([day if day.month == target_month else None for day in week])
 
+    first_day = date(target_year, target_month, 1)
+    last_day = date(target_year, target_month, monthrange(target_year, target_month)[1])
     sessions_by_day: dict[date, list[Session]] = {}
     for session_entry in student.sessions:
-        sessions_by_day.setdefault(session_entry.date, []).append(session_entry)
+        if first_day <= session_entry.date <= last_day:
+            sessions_by_day.setdefault(session_entry.date, []).append(session_entry)
 
     assignments = (
         Assignment.query.filter_by(student_id=student.id)
