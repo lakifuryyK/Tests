@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Платежи — Дневник репетитора{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>Добавить оплату</h2>
+  {% if students %}
+  <form method="post" class="form">
+    <div class="form__row">
+      <label for="student_id">Ученик</label>
+      <select id="student_id" name="student_id" required>
+        <option value="" disabled selected>Выберите ученика</option>
+        {% for student in students %}
+        <option value="{{ student.id }}">{{ student.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form__row form__row--inline">
+      <div>
+        <label for="amount">Сумма</label>
+        <input type="number" step="0.01" min="0" id="amount" name="amount" required />
+      </div>
+      <div>
+        <label for="paid_on">Дата оплаты</label>
+        <input type="date" id="paid_on" name="paid_on" required />
+      </div>
+      <div>
+        <label for="method">Способ</label>
+        <input type="text" id="method" name="method" placeholder="Перевод, наличные" required />
+      </div>
+    </div>
+    <div class="form__row">
+      <label for="notes">Комментарий</label>
+      <textarea id="notes" name="notes" rows="2"></textarea>
+    </div>
+    <button type="submit" class="button">Добавить оплату</button>
+  </form>
+  {% else %}
+  <p>Добавьте ученика, чтобы фиксировать платежи.</p>
+  {% endif %}
+</section>
+<section class="panel">
+  <h2>История оплат</h2>
+  {% if payments %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Ученик</th>
+        <th>Сумма</th>
+        <th>Способ</th>
+        <th>Комментарий</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for payment in payments %}
+      <tr>
+        <td>{{ payment.paid_on.strftime('%d.%m.%Y') }}</td>
+        <td>{{ payment.student.full_name }}</td>
+        <td>{{ '{:,.2f}'.format(payment.amount).replace(',', ' ') }} ₽</td>
+        <td>{{ payment.method }}</td>
+        <td>{{ payment.notes or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Здесь появится история оплат.</p>
+  {% endif %}
+</section>
+{% endblock %}

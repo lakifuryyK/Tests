@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Ученики — Дневник репетитора{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>Добавить ученика</h2>
+  <form method="post" class="form">
+    <div class="form__row">
+      <label for="full_name">ФИО</label>
+      <input type="text" id="full_name" name="full_name" required />
+    </div>
+    <div class="form__row">
+      <label for="subject">Предмет</label>
+      <input type="text" id="subject" name="subject" placeholder="Например, математика" />
+    </div>
+    <div class="form__row">
+      <label for="contact_info">Контакты</label>
+      <input type="text" id="contact_info" name="contact_info" placeholder="Телефон или email" />
+    </div>
+    <div class="form__row">
+      <label for="notes">Заметки</label>
+      <textarea id="notes" name="notes" rows="3"></textarea>
+    </div>
+    <button type="submit" class="button">Сохранить</button>
+  </form>
+</section>
+<section class="panel">
+  <h2>Список учеников</h2>
+  {% if students %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ФИО</th>
+        <th>Предмет</th>
+        <th>Контакты</th>
+        <th>Заметки</th>
+        <th>Создан</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for student in students %}
+      <tr>
+        <td>{{ student.full_name }}</td>
+        <td>{{ student.subject or '—' }}</td>
+        <td>{{ student.contact_info or '—' }}</td>
+        <td>{{ student.notes or '—' }}</td>
+        <td>{{ student.created_at.strftime('%d.%m.%Y') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Добавьте первого ученика, чтобы начать работу.</p>
+  {% endif %}
+</section>
+{% endblock %}

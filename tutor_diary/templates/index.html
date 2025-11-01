@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Главная — Дневник репетитора{% endblock %}
+{% block content %}
+<section class="grid">
+  <article class="card">
+    <h2>Ученики</h2>
+    <p class="card__value">{{ student_count }}</p>
+    <a class="card__link" href="{{ url_for('diary.manage_students') }}">Перейти к списку</a>
+  </article>
+  <article class="card">
+    <h2>Занятия</h2>
+    <p class="card__value">{{ session_count }}</p>
+    <a class="card__link" href="{{ url_for('diary.manage_sessions') }}">Планировать</a>
+  </article>
+  <article class="card">
+    <h2>Оплачено</h2>
+    <p class="card__value">{{ '{:,.2f}'.format(payment_total).replace(',', ' ') }} ₽</p>
+    <a class="card__link" href="{{ url_for('diary.manage_payments') }}">Учёт платежей</a>
+  </article>
+</section>
+<section class="panel">
+  <h2>Ближайшие занятия</h2>
+  {% if upcoming_sessions %}
+  <ul class="list">
+    {% for session in upcoming_sessions %}
+    <li>
+      <strong>{{ session.date.strftime('%d.%m.%Y') }} {{ session.start_time.strftime('%H:%M') }}</strong>
+      — {{ session.student.full_name }} ({{ session.topic }})
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Нет запланированных занятий.</p>
+  {% endif %}
+</section>
+{% endblock %}
