@@ -253,9 +253,11 @@
       <ul class="stack">
         {% for lesson in sessions %}
           <li class="stack__item">
-            <div class="stack__title">
-              {{ lesson.date.strftime('%d.%m.%Y') }} · {{ lesson.start_time.strftime('%H:%M') }} —
-              {{ lesson.topic }}
+            <div class="stack__title stack__title--lesson">
+              <span class="stack__lesson-time">
+                {{ lesson.date.strftime('%d.%m.%Y') }} · {{ lesson.start_time.strftime('%H:%M') }}
+              </span>
+              <span class="stack__lesson-topic">{{ lesson.topic }}</span>
             </div>
             <p class="stack__meta">
               Длительность: {{ lesson.duration_minutes }} мин · Статус: {{ lesson.status }}
