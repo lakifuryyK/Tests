@@ -187,6 +187,250 @@ a {
   padding: 2rem 1.5rem 3rem;
 }
 
+.teacher-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
+  gap: 2.5rem;
+  padding: 2.25rem 2.75rem;
+  border-radius: 1.75rem;
+  background: linear-gradient(140deg, rgba(99, 102, 241, 0.08), rgba(56, 189, 248, 0.06));
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+  margin-bottom: 2.75rem;
+}
+
+.teacher-hero__info h1 {
+  font-size: 2.15rem;
+  margin: 0 0 1rem;
+}
+
+.teacher-hero__info p {
+  margin: 0 0 1.1rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.teacher-hero__eyebrow {
+  margin: 0 0 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: rgba(99, 102, 241, 0.85);
+}
+
+.teacher-hero__limit {
+  margin: 1.25rem 0 0;
+  font-weight: 500;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.teacher-hero__limit span {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.teacher-hero__actions {
+  display: grid;
+  gap: 1.25rem;
+  justify-items: end;
+  align-content: space-between;
+}
+
+.teacher-hero__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.teacher-hero__buttons .btn {
+  min-width: 190px;
+  justify-content: center;
+}
+
+.teacher-hero__quick {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.teacher-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(320px, 1fr);
+  gap: 2.25rem;
+  align-items: start;
+  margin-bottom: 2.75rem;
+}
+
+.teacher-grid__sidebar {
+  display: grid;
+  gap: 2rem;
+}
+
+.teacher-grid__stats {
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.teacher-grid__stats .card {
+  padding: 1.35rem 1.5rem;
+}
+
+.calendar-board {
+  background: var(--bg-card);
+  border-radius: 1.75rem;
+  padding: 1.9rem 2.1rem 2.25rem;
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 65px rgba(15, 23, 42, 0.12);
+  display: grid;
+  gap: 1.75rem;
+}
+
+.calendar-board__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.25rem;
+}
+
+.calendar-board__title h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.75rem;
+}
+
+.calendar-board__title p {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.calendar-board__controls {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.calendar--board {
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 1.1rem;
+}
+
+.calendar-board__list {
+  list-style: none;
+  margin: 1.15rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.calendar-event {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 1rem;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: 0 14px 32px -18px rgba(15, 23, 42, 0.35);
+}
+
+.calendar-event--upcoming {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.28);
+}
+
+.calendar-event__time {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.calendar-event__body {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.calendar-event__student {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.calendar-event__topic {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.calendar-event__status {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(55, 65, 81, 0.88);
+}
+
+.calendar-event--active {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.calendar-event--active .calendar-event__status {
+  color: #92400e;
+}
+
+.calendar-event--passed {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.calendar-event--passed .calendar-event__status {
+  color: #1e40af;
+}
+
+.calendar-board__legend {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.calendar-board__badge {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-flex;
+  margin-right: 0.4rem;
+}
+
+.calendar-board__badge--upcoming {
+  background: rgba(99, 102, 241, 0.35);
+}
+
+.calendar-board__badge--active {
+  background: rgba(245, 158, 11, 0.55);
+}
+
+.calendar-board__badge--passed {
+  background: rgba(59, 130, 246, 0.65);
+}
+
+.teacher-lanes {
+  align-items: start;
+  gap: 2rem;
+}
+
+.teacher-subjects {
+  margin-top: 1rem;
+}
+
+.teacher-library {
+  margin-top: 1.5rem;
+}
+
+.chip--pill {
+  padding: 0.45rem 1.15rem;
+  font-weight: 600;
+}
+
 .alerts {
   display: grid;
   gap: 0.75rem;
@@ -276,6 +520,72 @@ a {
     flex-direction: column;
     align-items: flex-start;
     padding: 1.5rem 1.75rem;
+  }
+}
+
+@media (max-width: 1100px) {
+  .teacher-hero {
+    grid-template-columns: 1fr;
+    padding: 2rem;
+    gap: 2rem;
+  }
+
+  .teacher-hero__actions {
+    justify-items: start;
+  }
+
+  .teacher-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .teacher-grid__stats {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .calendar--board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .calendar--board .calendar__header {
+    display: none;
+  }
+
+  .panel--student-calendar .calendar {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .panel--student-calendar .calendar__cell {
+    min-height: 200px;
+  }
+}
+
+@media (max-width: 640px) {
+  .teacher-hero {
+    padding: 1.6rem;
+  }
+
+  .teacher-hero__buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .teacher-hero__buttons .btn {
+    width: 100%;
+  }
+
+  .calendar-board {
+    padding: 1.4rem;
+  }
+
+  .calendar-board__toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .panel--student-calendar .calendar {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 }
 
@@ -458,12 +768,30 @@ a {
   padding: 1.85rem;
 }
 
+.panel--student-calendar {
+  padding: 2.15rem 2.35rem;
+}
+
+.panel--student-calendar .calendar {
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 1.1rem;
+}
+
+.panel--student-calendar .calendar__cell {
+  min-height: 225px;
+}
+
+.panel--student-calendar .calendar__date {
+  font-size: 1.05rem;
+}
+
 .student-dashboard__calendar {
-  margin-bottom: 2.75rem;
+  margin-bottom: 3rem;
 }
 
 .student-dashboard__secondary {
   align-items: start;
+  gap: 2rem;
 }
 
 .material-stream {
