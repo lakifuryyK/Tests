@@ -13,17 +13,17 @@
       {% endif %}
       Следите за расписанием, заданиями и прогрессом в удобном формате.
     </p>
-    <div class="student-hero__actions">
-      <a class="btn btn--primary" href="{{ url_for('diary.student_homework') }}">Домашние задания</a>
-      <a class="btn btn--ghost" href="{{ url_for('diary.student_chat') }}">Написать преподавателю</a>
-    </div>
     <p class="student-hero__hint">
       {% if next_session_state and next_session %}
-        Ближайший урок {{ next_session.date.strftime('%d.%m') }} — {{ next_session_state.time_hint | lower }}.
+        Ближайший урок {{ next_session.date.strftime('%d.%m') }} — {{ next_session_state.time_hint }}.
       {% else %}
         Когда появится новое занятие, мы подскажем, сколько осталось до старта.
       {% endif %}
     </p>
+    <div class="student-hero__actions">
+      <a class="btn btn--primary" href="{{ url_for('diary.student_homework') }}">Домашние задания</a>
+      <a class="btn btn--ghost" href="{{ url_for('diary.student_chat') }}">Написать преподавателю</a>
+    </div>
   </div>
   <div class="student-hero__card">
     <h3>Ближайший урок</h3>
