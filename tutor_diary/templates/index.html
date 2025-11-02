@@ -54,6 +54,38 @@
   </article>
 </section>
 
+{% if teacher_messages %}
+  <section class="panel panel--messages">
+    <div class="panel__header">
+      <h2>Обновления от администратора</h2>
+      {% if teacher_messages_due %}
+        <span class="chip chip--warning">Есть задачи</span>
+      {% else %}
+        <span class="chip chip--light">Актуально</span>
+      {% endif %}
+    </div>
+    <div class="message-grid">
+      {% for note in teacher_messages %}
+        <article class="message-card {% if note in teacher_messages_due %}message-card--alert{% endif %}">
+          <header class="message-card__header">
+            <h3>{{ note.subject }}</h3>
+            <span class="message-card__meta">{{ note.created_at.strftime('%d.%m %H:%M') }}</span>
+          </header>
+          <p class="message-card__body">{{ note.body }}</p>
+          <footer class="message-card__footer">
+            <span class="chip chip--mini">
+              {{ 'Для всех преподавателей' if note.is_global else 'Личное сообщение' }}
+            </span>
+            {% if note.due_date %}
+              <span class="chip chip--deadline">Срок: {{ note.due_date.strftime('%d.%m') }}</span>
+            {% endif %}
+          </footer>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
 <section class="panel panel--calendar panel--calendar-wide">
   <div class="panel__header">
     <h2>Календарь преподавателя</h2>
@@ -231,8 +263,8 @@
 {% if subject_overview or unmanaged_subjects %}
   <section class="panel panel--subjects">
     <div class="panel__header">
-      <h2>Предметная панель</h2>
-      <a class="chip" href="{{ url_for('diary.manage_subjects') }}">Настройки предметов</a>
+      <h2>Ваши предметы</h2>
+      <span class="chip">{{ assigned_subjects|length }} из 3</span>
     </div>
     {% if subject_overview %}
       <div class="subject-grid">
@@ -262,24 +294,19 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="muted">Пока нет настроенных предметов — самое время добавить первый.</p>
+      <p class="muted">Администратор ещё не закрепил за вами предметы.</p>
     {% endif %}
+    <div class="panel__footer panel__footer--notice">
+      <p>Нужен дополнительный предмет? Свяжитесь с администратором, чтобы обновить закреплённые дисциплины.</p>
+    </div>
     {% if unmanaged_subjects %}
-      <div class="panel__footer panel__footer--notice">
-        <strong>Нуждаются в настройке:</strong>
+      <div class="panel__footer panel__footer--alert">
+        <strong>Внимание:</strong>
         <ul class="subject-missing">
           {% for item in unmanaged_subjects %}
             {% set count = item.students %}
             <li>
-              {{ item.name }} —
-              {{ count }}
-              {% if count % 10 == 1 and count % 100 != 11 %}
-                ученик
-              {% elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20) %}
-                ученика
-              {% else %}
-                учеников
-              {% endif %}
+              {{ item.name }} — {{ count }} учеников ждут назначения в одну из ваших трёх дисциплин.
             </li>
           {% endfor %}
         </ul>

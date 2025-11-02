@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import joinedload
 
 try:  # Flask-Migrate is optional in local setups
     from flask_migrate import Migrate
@@ -170,6 +171,39 @@ def create_app(test_config: dict | None = None) -> Flask:
         if created:
             db.session.commit()
 
+    def ensure_teacher_subject_assignments() -> None:
+        """Guarantee that each teacher works with at most three predefined subjects."""
+        from .models import SubjectSetting, Teacher
+
+        teachers = Teacher.query.options(joinedload(Teacher.subjects)).all()
+        if not teachers:
+            return
+
+        available_subjects = (
+            SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+        )
+        if not available_subjects:
+            return
+
+        for teacher in teachers:
+            current_subjects = list(teacher.subjects)
+            if current_subjects:
+                teacher.subjects = current_subjects[:3]
+            else:
+                teacher.subjects = []
+
+            if len(teacher.subjects) < 3:
+                needed = 3 - len(teacher.subjects)
+                for subject in available_subjects:
+                    if subject in teacher.subjects:
+                        continue
+                    teacher.subjects.append(subject)
+                    needed -= 1
+                    if needed == 0:
+                        break
+
+        db.session.commit()
+
     def ensure_schema_upgrades() -> None:
         """Apply lightweight schema adjustments for legacy databases."""
         from sqlalchemy import inspect, text
@@ -234,6 +268,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         ensure_schema_upgrades()
         ensure_admin_account()
         ensure_default_subjects()
+        ensure_teacher_subject_assignments()
 
     with app.app_context():
         bootstrap_database()

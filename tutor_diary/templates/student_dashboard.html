@@ -83,6 +83,35 @@
   </div>
 </section>
 
+{% if student_messages %}
+  <section class="panel panel--messages">
+    <div class="panel__header">
+      <h2>Объявления ОбразОн</h2>
+      {% if student_messages_due %}
+        <span class="chip chip--warning">Важно</span>
+      {% else %}
+        <span class="chip chip--light">Информация</span>
+      {% endif %}
+    </div>
+    <div class="message-grid">
+      {% for note in student_messages %}
+        <article class="message-card {% if note in student_messages_due %}message-card--alert{% endif %}">
+          <header class="message-card__header">
+            <h3>{{ note.subject }}</h3>
+            <span class="message-card__meta">{{ note.created_at.strftime('%d.%m %H:%M') }}</span>
+          </header>
+          <p class="message-card__body">{{ note.body }}</p>
+          {% if note.due_date %}
+            <footer class="message-card__footer">
+              <span class="chip chip--deadline">Срок: {{ note.due_date.strftime('%d.%m') }}</span>
+            </footer>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
 <section class="grid grid--two student-dashboard__secondary">
   <article class="panel panel--student-materials">
     <div class="panel__header">

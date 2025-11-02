@@ -23,6 +23,18 @@
       <span>Лимит учеников</span>
       <input type="number" name="max_students" min="1" step="1" value="10" />
     </label>
+    <fieldset class="form__field form__field--wide">
+      <legend>Предметы (выберите 3)</legend>
+      <div class="checkbox-grid">
+        {% for subject in subject_settings %}
+          <label class="checkbox">
+            <input type="checkbox" name="subject_ids" value="{{ subject.id }}" />
+            <span>{{ subject.name }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <small class="muted">Учитель сможет вести только указанные направления. При создании нужно выбрать ровно три дисциплины.</small>
+    </fieldset>
     <div class="form__actions">
       <button type="submit" class="btn btn--primary">Создать преподавателя</button>
     </div>
@@ -42,6 +54,15 @@
             <h3>{{ entry.teacher.username }}</h3>
             <span class="chip chip--light">{{ entry.student_count }} / {{ entry.limit }} учеников</span>
           </header>
+          {% if entry.subjects %}
+            <ul class="chip-list">
+              {% for subject in entry.subjects %}
+                <li class="chip-list__item">
+                  <span class="chip chip--mini">{{ subject.name }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
           <p class="muted">Создан {{ entry.teacher.created_at.strftime('%d.%m.%Y') }}</p>
           <form method="post" class="form form--stack">
             <input type="hidden" name="action" value="update" />
@@ -54,6 +75,23 @@
               <span>Сбросить пароль</span>
               <input type="password" name="password" placeholder="Оставьте пустым, чтобы не менять" />
             </label>
+            <fieldset class="form__field form__field--wide">
+              <legend>Предметы преподавателя</legend>
+              <div class="checkbox-grid">
+                {% for subject in subject_settings %}
+                  <label class="checkbox">
+                    <input
+                      type="checkbox"
+                      name="subject_ids"
+                      value="{{ subject.id }}"
+                      {% if subject in entry.subjects %}checked{% endif %}
+                    />
+                    <span>{{ subject.name }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+              <small class="muted">Оставьте отмеченными ровно три предмета — так учитель будет работать только с ними.</small>
+            </fieldset>
             <div class="form__actions">
               <button type="submit" class="btn btn--primary">Сохранить</button>
             </div>

@@ -11,8 +11,7 @@
       {% else %}
         Максимум учеников: {{ student_limit }}. Осталось мест: {{ limit_remaining }}.
         Передайте логин и пароль ученику, чтобы он получил доступ к личному кабинету.
-        Выберите предмет из готового списка — администратор заранее добавил основные
-        школьные дисциплины.
+        Предмет выбирается из трёх направлений, закреплённых за вашим аккаунтом администратором.
       {% endif %}
     </p>
   </div>
@@ -59,7 +58,7 @@
       <label class="form__field">
         <span>Собственный предмет</span>
         <input type="text" name="subject_custom" placeholder="Например, Олимпиадная физика" />
-        <small class="muted">Будет сохранён, если выбрать «Свой предмет».</small>
+        <small class="muted">Будет сохранён, если выбрать соответствующее значение.</small>
       </label>
     {% endif %}
     <label class="form__field">
@@ -72,7 +71,9 @@
     </label>
     <div class="form__actions">
       <button type="submit" class="btn btn--primary">Сохранить</button>
-      <a class="link" href="{{ url_for('diary.manage_subjects') }}">Управлять предметами</a>
+      {% if is_admin %}
+        <a class="link" href="{{ url_for('diary.manage_subjects') }}">Управлять предметами</a>
+      {% endif %}
     </div>
   </form>
 </section>

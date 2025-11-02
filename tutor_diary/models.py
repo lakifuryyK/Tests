@@ -18,6 +18,9 @@ class Admin(db.Model):
     teachers = db.relationship(
         "Teacher", backref="owner", lazy=True, cascade="all, delete-orphan"
     )
+    communications = db.relationship(
+        "AdminCommunication", backref="author", lazy=True, cascade="all, delete-orphan"
+    )
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
@@ -39,6 +42,14 @@ class SubjectSetting(db.Model):
     library_items = db.relationship(
         "LibraryMaterial", backref="subject_setting", lazy=True, cascade="all, delete-orphan"
     )
+
+
+teacher_subject_links = db.Table(
+    "teacher_subject_links",
+    db.Column("teacher_id", db.Integer, db.ForeignKey("teachers.id"), primary_key=True),
+    db.Column("subject_id", db.Integer, db.ForeignKey("subject_settings.id"), primary_key=True),
+    db.Column("created_at", db.DateTime, default=datetime.utcnow, nullable=False),
+)
 
 
 class Student(db.Model):
@@ -64,6 +75,12 @@ class Student(db.Model):
     )
     messages = db.relationship(
         "ChatMessage", backref="student", lazy=True, cascade="all, delete-orphan"
+    )
+    admin_messages = db.relationship(
+        "AdminCommunication",
+        primaryjoin="AdminCommunication.student_id == Student.id",
+        lazy="dynamic",
+        backref=db.backref("student_recipient", lazy=True),
     )
 
     def set_password(self, password: str) -> None:
@@ -137,6 +154,21 @@ class ChatMessage(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AdminCommunication(db.Model):
+    __tablename__ = "admin_communications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False)
+    target_role = db.Column(db.String(20), nullable=False)
+    subject = db.Column(db.String(255), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    is_global = db.Column(db.Boolean, default=False, nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class Teacher(db.Model):
     __tablename__ = "teachers"
 
@@ -148,6 +180,18 @@ class Teacher(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     students = db.relationship("Student", backref="teacher", lazy=True)
+    subjects = db.relationship(
+        "SubjectSetting",
+        secondary=teacher_subject_links,
+        lazy="joined",
+        backref=db.backref("teachers", lazy="dynamic"),
+    )
+    communications = db.relationship(
+        "AdminCommunication",
+        primaryjoin="AdminCommunication.teacher_id == Teacher.id",
+        lazy="dynamic",
+        backref=db.backref("teacher_recipient", lazy=True),
+    )
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)

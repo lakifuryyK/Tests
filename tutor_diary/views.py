@@ -17,10 +17,13 @@ from flask import (
     url_for,
 )
 
+from sqlalchemy import or_
+
 from . import db
 from .models import (
     Admin,
     Assignment,
+    AdminCommunication,
     ChatMessage,
     LibraryMaterial,
     Material,
@@ -111,6 +114,12 @@ def index():
         session.clear()
         flash("Сессия истекла, войдите снова.", "warning")
         return redirect(url_for("diary.login"))
+
+    assigned_subjects = sorted(
+        teacher.subjects,
+        key=lambda subject: subject.name.lower() if subject and subject.name else "",
+    )
+    assigned_subject_names = {subject.name for subject in assigned_subjects}
 
     today = datetime.utcnow().date()
     student_query = Student.query.filter_by(teacher_id=teacher.id)
@@ -251,9 +260,36 @@ def index():
         .all()
     )
 
-    library_spotlight = (
-        LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(3).all()
+    library_query = LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc())
+    if assigned_subject_names:
+        library_query = (
+            library_query.join(SubjectSetting, LibraryMaterial.subject_setting, isouter=True)
+            .filter(
+                or_(
+                    LibraryMaterial.subject_id.is_(None),
+                    SubjectSetting.name.in_(assigned_subject_names),
+                )
+            )
+        )
+    library_spotlight = library_query.limit(3).all()
+
+    teacher_messages_query = (
+        AdminCommunication.query.filter(
+            AdminCommunication.target_role == TEACHER_ROLE,
+            or_(
+                AdminCommunication.is_global.is_(True),
+                AdminCommunication.teacher_id == teacher.id,
+            ),
+        )
+        .order_by(AdminCommunication.created_at.desc())
     )
+    teacher_messages = teacher_messages_query.limit(6).all()
+    message_deadline_window = today + timedelta(days=7)
+    teacher_messages_due = [
+        message
+        for message in teacher_messages
+        if message.due_date and today <= message.due_date <= message_deadline_window
+    ]
 
     def format_names(items: list[Student], limit: int = 3) -> str:
         if not items:
@@ -473,7 +509,7 @@ def index():
         .group_by(Student.subject)
         .all()
     )
-    configured_subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+    configured_subjects = assigned_subjects
     configured_names = {subject.name for subject in configured_subjects}
     subject_overview = [
         {
@@ -514,6 +550,9 @@ def index():
         library_spotlight=library_spotlight,
         student_limit=teacher.max_students,
         limit_remaining=limit_remaining,
+        teacher_messages=teacher_messages,
+        teacher_messages_due=teacher_messages_due,
+        assigned_subjects=assigned_subjects,
     )
 
 
@@ -556,6 +595,11 @@ def admin_dashboard():
         .all()
     )
     unassigned_students = Student.query.filter(Student.teacher_id.is_(None)).all()
+    recent_messages = (
+        AdminCommunication.query.order_by(AdminCommunication.created_at.desc())
+        .limit(5)
+        .all()
+    )
 
     return render_template(
         "admin_dashboard.html",
@@ -567,6 +611,7 @@ def admin_dashboard():
         teacher_stats=teacher_stats,
         sessions_next_week=sessions_next_week,
         unassigned_students=unassigned_students,
+        recent_messages=recent_messages,
     )
 
 
@@ -580,12 +625,15 @@ def admin_manage_teachers():
         flash("Сессия администратора истекла, войдите снова.", "warning")
         return redirect(url_for("diary.login"))
 
+    subject_settings = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+
     if request.method == "POST":
         action = request.form.get("action", "create")
         if action == "create":
             username = request.form.get("username", "").strip()
             password = request.form.get("password", "").strip()
             max_students_str = request.form.get("max_students", "").strip()
+            subject_id_values = request.form.getlist("subject_ids")
             try:
                 max_students = int(max_students_str) if max_students_str else 10
             except ValueError:
@@ -594,13 +642,25 @@ def admin_manage_teachers():
                 flash("Укажите логин и пароль преподавателя.", "danger")
             elif Teacher.query.filter_by(username=username).first():
                 flash("Преподаватель с таким логином уже существует.", "danger")
+            elif len(subject_id_values) != 3:
+                flash("Выберите ровно три предмета для нового преподавателя.", "danger")
             else:
+                subject_ids = [int(value) for value in subject_id_values if value.isdigit()]
+                subjects = (
+                    SubjectSetting.query.filter(SubjectSetting.id.in_(subject_ids)).all()
+                    if subject_ids
+                    else []
+                )
+                if len(subjects) != 3:
+                    flash("Некоторые выбранные предметы не найдены.", "danger")
+                    return redirect(url_for("diary.admin_manage_teachers"))
                 teacher = Teacher(
                     username=username,
                     max_students=max(1, max_students),
                     owner_id=admin_user.id,
                 )
                 teacher.set_password(password)
+                teacher.subjects = subjects
                 db.session.add(teacher)
                 db.session.commit()
                 flash("Преподаватель создан.", "success")
@@ -616,6 +676,21 @@ def admin_manage_teachers():
             else:
                 max_students_str = request.form.get("max_students", "").strip()
                 new_password = request.form.get("password", "").strip()
+                subject_id_values = request.form.getlist("subject_ids")
+                if subject_id_values:
+                    subject_ids = [int(value) for value in subject_id_values if value.isdigit()]
+                    subjects = (
+                        SubjectSetting.query.filter(SubjectSetting.id.in_(subject_ids)).all()
+                        if subject_ids
+                        else []
+                    )
+                    if len(subjects) != 3:
+                        flash(
+                            "Выберите ровно три предмета из списка, чтобы сохранить изменения.",
+                            "danger",
+                        )
+                        return redirect(url_for("diary.admin_manage_teachers"))
+                    teacher.subjects = subjects
                 if max_students_str:
                     try:
                         new_limit = int(max_students_str)
@@ -656,6 +731,10 @@ def admin_manage_teachers():
             "teacher": teacher,
             "student_count": len(teacher.students),
             "limit": teacher.max_students,
+            "subjects": sorted(
+                teacher.subjects,
+                key=lambda subject: subject.name.lower() if subject and subject.name else "",
+            ),
         }
         for teacher in teachers
     ]
@@ -664,6 +743,7 @@ def admin_manage_teachers():
         "admin_teachers.html",
         admin=admin_user,
         teacher_stats=teacher_stats,
+        subject_settings=subject_settings,
     )
 
 
@@ -675,14 +755,23 @@ def manage_students():
         flash("Сессия истекла, войдите снова.", "warning")
         return redirect(url_for("diary.login"))
 
-    subject_settings = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+    subject_settings = sorted(
+        teacher.subjects,
+        key=lambda subject: subject.name.lower() if subject and subject.name else "",
+    )
+    allowed_subject_names = {subject.name for subject in subject_settings}
+    if not subject_settings:
+        flash(
+            "У преподавателя не настроены предметы. Обратитесь к администратору, чтобы выбрать направления.",
+            "warning",
+        )
 
     if request.method == "POST":
         full_name = request.form.get("full_name", "").strip()
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
         subject_choice = (request.form.get("subject_choice") or "").strip()
-        subject = subject_choice if subject_choice and subject_choice != "__custom__" else None
+        subject = subject_choice if subject_choice in allowed_subject_names else None
         contact_info = request.form.get("contact_info", "").strip() or None
         notes = request.form.get("notes", "").strip() or None
 
@@ -698,6 +787,11 @@ def manage_students():
             flash("Укажите ФИО, логин и пароль ученика.", "danger")
         elif Student.query.filter_by(username=username).first():
             flash("Ученик с таким логином уже существует.", "danger")
+        elif subject_choice and subject_choice not in allowed_subject_names:
+            flash(
+                "Этот предмет недоступен в вашем профиле. Выберите один из трёх назначенных направлений.",
+                "danger",
+            )
         else:
             student = Student(
                 full_name=full_name,
@@ -894,11 +988,165 @@ def admin_manage_students():
     )
 
 
+@bp.route("/admin/messages", methods=["GET", "POST"])
+@login_required(ADMIN_ROLE)
+def admin_messages():
+    admin = Admin.query.get(session.get("admin_id"))
+    if not admin:
+        flash("Сессия администратора истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
+
+    teachers = Teacher.query.order_by(Teacher.username.asc()).all()
+    students = Student.query.order_by(Student.full_name.asc()).all()
+    subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+
+    if request.method == "POST":
+        action = request.form.get("action", "broadcast_teachers")
+        subject_line = request.form.get("subject", "").strip()
+        body = request.form.get("body", "").strip()
+        due_date_str = request.form.get("due_date", "").strip()
+        due_date_value = None
+        if due_date_str:
+            try:
+                due_date_value = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                flash("Дата должна быть в формате ГГГГ-ММ-ДД.", "danger")
+                return redirect(url_for("diary.admin_messages"))
+
+        if not subject_line or not body:
+            flash("Укажите тему и текст сообщения.", "danger")
+            return redirect(url_for("diary.admin_messages"))
+
+        if action == "broadcast_teachers":
+            communication = AdminCommunication(
+                admin_id=admin.id,
+                target_role=TEACHER_ROLE,
+                subject=subject_line,
+                body=body,
+                is_global=True,
+                due_date=due_date_value,
+            )
+            db.session.add(communication)
+            db.session.commit()
+            flash("Сообщение отправлено всем преподавателям.", "success")
+        elif action == "direct_teacher":
+            teacher_id_raw = request.form.get("teacher_id")
+            teacher = (
+                Teacher.query.get(int(teacher_id_raw))
+                if teacher_id_raw and teacher_id_raw.isdigit()
+                else None
+            )
+            if not teacher:
+                flash("Выберите преподавателя для личного сообщения.", "danger")
+            else:
+                db.session.add(
+                    AdminCommunication(
+                        admin_id=admin.id,
+                        target_role=TEACHER_ROLE,
+                        subject=subject_line,
+                        body=body,
+                        is_global=False,
+                        teacher_id=teacher.id,
+                        due_date=due_date_value,
+                    )
+                )
+                db.session.commit()
+                flash(f"Сообщение отправлено преподавателю {teacher.username}.", "success")
+        elif action == "subject_group":
+            subject_id_raw = request.form.get("subject_id")
+            subject = (
+                SubjectSetting.query.get(int(subject_id_raw))
+                if subject_id_raw and subject_id_raw.isdigit()
+                else None
+            )
+            if not subject:
+                flash("Выберите предмет для целевой рассылки.", "danger")
+            else:
+                recipients = [
+                    teacher
+                    for teacher in teachers
+                    if any(item.id == subject.id for item in teacher.subjects)
+                ]
+                if not recipients:
+                    flash("Нет преподавателей, работающих с этим предметом.", "warning")
+                else:
+                    for teacher in recipients:
+                        db.session.add(
+                            AdminCommunication(
+                                admin_id=admin.id,
+                                target_role=TEACHER_ROLE,
+                                subject=subject_line,
+                                body=body,
+                                is_global=False,
+                                teacher_id=teacher.id,
+                                due_date=due_date_value,
+                            )
+                        )
+                    db.session.commit()
+                    flash(
+                        f"Сообщение отправлено {len(recipients)} преподавателям предмета {subject.name}.",
+                        "success",
+                    )
+        elif action == "broadcast_students":
+            db.session.add(
+                AdminCommunication(
+                    admin_id=admin.id,
+                    target_role=STUDENT_ROLE,
+                    subject=subject_line,
+                    body=body,
+                    is_global=True,
+                    due_date=due_date_value,
+                )
+            )
+            db.session.commit()
+            flash("Сообщение отправлено всем ученикам.", "success")
+        elif action == "direct_student":
+            student_id_raw = request.form.get("student_id")
+            student = (
+                Student.query.get(int(student_id_raw))
+                if student_id_raw and student_id_raw.isdigit()
+                else None
+            )
+            if not student:
+                flash("Выберите ученика для сообщения.", "danger")
+            else:
+                db.session.add(
+                    AdminCommunication(
+                        admin_id=admin.id,
+                        target_role=STUDENT_ROLE,
+                        subject=subject_line,
+                        body=body,
+                        is_global=False,
+                        student_id=student.id,
+                        due_date=due_date_value,
+                    )
+                )
+                db.session.commit()
+                flash(f"Сообщение отправлено ученику {student.full_name}.", "success")
+        else:
+            flash("Неизвестное действие.", "danger")
+
+        return redirect(url_for("diary.admin_messages"))
+
+    communications = (
+        AdminCommunication.query.order_by(AdminCommunication.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    return render_template(
+        "admin_messages.html",
+        admin=admin,
+        teachers=teachers,
+        students=students,
+        subjects=subjects,
+        communications=communications,
+    )
+
+
 @bp.route("/subjects", methods=["GET", "POST"])
-@login_required(TEACHER_ROLE, ADMIN_ROLE)
+@login_required(ADMIN_ROLE)
 def manage_subjects():
-    role = session.get("role")
-    teacher = current_teacher() if role == TEACHER_ROLE else None
     subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
 
     if request.method == "POST":
@@ -960,8 +1208,6 @@ def manage_subjects():
 
     student_counts_query = db.session.query(Student.subject, db.func.count(Student.id))
     student_counts_query = student_counts_query.filter(Student.subject.isnot(None))
-    if teacher:
-        student_counts_query = student_counts_query.filter(Student.teacher_id == teacher.id)
     student_counts_query = student_counts_query.group_by(Student.subject)
     student_counts = dict(student_counts_query.all())
 
@@ -969,14 +1215,23 @@ def manage_subjects():
         "subjects.html",
         subjects=subjects,
         student_counts=student_counts,
-        is_admin=role == ADMIN_ROLE,
+        is_admin=True,
     )
 
 
 @bp.route("/library", methods=["GET", "POST"])
 @login_required(TEACHER_ROLE, ADMIN_ROLE)
 def manage_library():
-    subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+    role = session.get("role")
+    teacher = current_teacher() if role == TEACHER_ROLE else None
+    if teacher:
+        subjects = sorted(
+            teacher.subjects,
+            key=lambda subject: subject.name.lower() if subject and subject.name else "",
+        )
+    else:
+        subjects = SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+    allowed_subject_ids = {subject.id for subject in subjects if subject and subject.id}
 
     if request.method == "POST":
         action = request.form.get("action", "create")
@@ -989,6 +1244,8 @@ def manage_library():
             subject_id = int(subject_id_raw) if subject_id_raw and subject_id_raw.isdigit() else None
             if not title:
                 flash("Укажите название материала.", "danger")
+            elif teacher and subject_id and subject_id not in allowed_subject_ids:
+                flash("Вы можете прикреплять материалы только к своим предметам.", "danger")
             else:
                 item = LibraryMaterial(
                     title=title,
@@ -1029,6 +1286,9 @@ def manage_library():
                     if subject_id_raw and subject_id_raw.isdigit()
                     else None
                 )
+                if teacher and item.subject_id and item.subject_id not in allowed_subject_ids:
+                    flash("Этот материал нельзя привязать к неразрешённому предмету.", "danger")
+                    item.subject_id = None
                 db.session.commit()
                 flash("Материал обновлён.", "success")
         return redirect(url_for("diary.manage_library"))
@@ -1038,7 +1298,10 @@ def manage_library():
     if subject_filter == "unassigned":
         query = query.filter(LibraryMaterial.subject_id.is_(None))
     elif subject_filter:
-        query = query.join(SubjectSetting).filter(SubjectSetting.name == subject_filter)
+        if teacher and subject_filter not in {subject.name for subject in subjects}:
+            subject_filter = None
+        else:
+            query = query.join(SubjectSetting).filter(SubjectSetting.name == subject_filter)
     library_items = query.all()
 
     return render_template(
@@ -1169,11 +1432,16 @@ def manage_sessions():
     if not teacher:
         flash("Сессия истекла, войдите снова.", "warning")
         return redirect(url_for("diary.login"))
+    subject_settings = sorted(
+        teacher.subjects,
+        key=lambda subject: subject.name.lower() if subject and subject.name else "",
+    )
     subject_defaults = {
-        subject.name: subject.default_duration
-        for subject in SubjectSetting.query.order_by(SubjectSetting.name.asc()).all()
+        subject.name: subject.default_duration for subject in subject_settings
     }
     subject_focus = request.args.get("subject")
+    if subject_focus and subject_focus not in subject_defaults:
+        subject_focus = None
 
     students_query = Student.query.order_by(Student.full_name.asc()).filter(
         Student.teacher_id == teacher.id
@@ -1519,6 +1787,23 @@ def student_board():
             LibraryMaterial.query.order_by(LibraryMaterial.created_at.desc()).limit(3).all()
         )
 
+    student_messages_query = (
+        AdminCommunication.query.filter(
+            AdminCommunication.target_role == STUDENT_ROLE,
+            or_(
+                AdminCommunication.is_global.is_(True),
+                AdminCommunication.student_id == student.id,
+            ),
+        )
+        .order_by(AdminCommunication.created_at.desc())
+    )
+    student_messages = student_messages_query.limit(5).all()
+    student_messages_due = [
+        message
+        for message in student_messages
+        if message.due_date and today <= message.due_date <= today + timedelta(days=5)
+    ]
+
     payment_assistant = {
         "tone": "info",
         "headline": "Все платежи под контролем",
@@ -1661,6 +1946,8 @@ def student_board():
         subject_profile=subject_profile,
         library_preview=library_preview,
         payment_assistant=payment_assistant,
+        student_messages=student_messages,
+        student_messages_due=student_messages_due,
     )
 
 

@@ -127,4 +127,46 @@
     {% endif %}
   </article>
 </section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Последние коммуникации</h2>
+    <a class="chip" href="{{ url_for('diary.admin_messages') }}">Центр сообщений</a>
+  </div>
+  {% if recent_messages %}
+    <div class="message-grid">
+      {% for item in recent_messages %}
+        <article class="message-card">
+          <header class="message-card__header">
+            <h3>{{ item.subject }}</h3>
+            <span class="message-card__meta">{{ item.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+          </header>
+          <p class="message-card__body">{{ item.body }}</p>
+          <footer class="message-card__footer">
+            <span class="chip chip--mini">
+              {% if item.target_role == 'teacher' %}
+                {% if item.is_global %}
+                  Для всех преподавателей
+                {% else %}
+                  Преподаватель: {{ item.teacher_recipient.username if item.teacher_recipient else '—' }}
+                {% endif %}
+              {% else %}
+                {% if item.is_global %}
+                  Для всех учеников
+                {% else %}
+                  Ученик: {{ item.student_recipient.full_name if item.student_recipient else '—' }}
+                {% endif %}
+              {% endif %}
+            </span>
+            {% if item.due_date %}
+              <span class="chip chip--deadline">Срок: {{ item.due_date.strftime('%d.%m') }}</span>
+            {% endif %}
+          </footer>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Сообщений пока нет. Используйте центр сообщений, чтобы связаться с преподавателями и учениками.</p>
+  {% endif %}
+</section>
 {% endblock %}
