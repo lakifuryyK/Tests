@@ -176,7 +176,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             db.session.commit()
 
     def ensure_teacher_subject_assignments() -> None:
-        """Guarantee that each teacher works with at most three predefined subjects."""
+        """Guarantee that each teacher works with one to three predefined subjects."""
         from .models import SubjectSetting, Teacher
 
         teachers = Teacher.query.options(joinedload(Teacher.subjects)).all()
@@ -189,22 +189,28 @@ def create_app(test_config: dict | None = None) -> Flask:
         if not available_subjects:
             return
 
-        for teacher in teachers:
-            current_subjects = list(teacher.subjects)
-            if current_subjects:
-                teacher.subjects = current_subjects[:3]
-            else:
-                teacher.subjects = []
+        available_by_id = {subject.id: subject for subject in available_subjects if subject.id}
+        if not available_by_id:
+            return
 
-            if len(teacher.subjects) < 3:
-                needed = 3 - len(teacher.subjects)
-                for subject in available_subjects:
-                    if subject in teacher.subjects:
-                        continue
-                    teacher.subjects.append(subject)
-                    needed -= 1
-                    if needed == 0:
-                        break
+        first_subject_id = next(iter(available_by_id))
+
+        for teacher in teachers:
+            unique_subject_ids: list[int] = []
+            for subject in teacher.subjects:
+                if not subject or subject.id not in available_by_id:
+                    continue
+                if subject.id in unique_subject_ids:
+                    continue
+                unique_subject_ids.append(subject.id)
+
+            if len(unique_subject_ids) > 3:
+                unique_subject_ids = unique_subject_ids[:3]
+
+            if not unique_subject_ids and first_subject_id is not None:
+                unique_subject_ids = [first_subject_id]
+
+            teacher.subjects = [available_by_id[sid] for sid in unique_subject_ids]
 
         db.session.commit()
 

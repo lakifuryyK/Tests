@@ -642,16 +642,29 @@ def admin_manage_teachers():
                 flash("Укажите логин и пароль преподавателя.", "danger")
             elif Teacher.query.filter_by(username=username).first():
                 flash("Преподаватель с таким логином уже существует.", "danger")
-            elif len(subject_id_values) != 3:
-                flash("Выберите ровно три предмета для нового преподавателя.", "danger")
             else:
-                subject_ids = [int(value) for value in subject_id_values if value.isdigit()]
+                subject_ids: list[int] = []
+                for value in subject_id_values:
+                    if not value.isdigit():
+                        continue
+                    subject_id = int(value)
+                    if subject_id not in subject_ids:
+                        subject_ids.append(subject_id)
+
+                if not subject_ids:
+                    flash("Выберите хотя бы один предмет из списка.", "danger")
+                    return redirect(url_for("diary.admin_manage_teachers"))
+                if len(subject_ids) > 3:
+                    flash("Можно выбрать не более трёх предметов для нового преподавателя.", "danger")
+                    return redirect(url_for("diary.admin_manage_teachers"))
+
                 subjects = (
                     SubjectSetting.query.filter(SubjectSetting.id.in_(subject_ids)).all()
                     if subject_ids
                     else []
                 )
-                if len(subjects) != 3:
+                subjects_by_id = {subject.id: subject for subject in subjects if subject and subject.id}
+                if len(subjects_by_id) != len(subject_ids):
                     flash("Некоторые выбранные предметы не найдены.", "danger")
                     return redirect(url_for("diary.admin_manage_teachers"))
                 teacher = Teacher(
@@ -660,7 +673,7 @@ def admin_manage_teachers():
                     owner_id=admin_user.id,
                 )
                 teacher.set_password(password)
-                teacher.subjects = subjects
+                teacher.subjects = [subjects_by_id[sid] for sid in subject_ids]
                 db.session.add(teacher)
                 db.session.commit()
                 flash("Преподаватель создан.", "success")
@@ -678,19 +691,40 @@ def admin_manage_teachers():
                 new_password = request.form.get("password", "").strip()
                 subject_id_values = request.form.getlist("subject_ids")
                 if subject_id_values:
-                    subject_ids = [int(value) for value in subject_id_values if value.isdigit()]
+                    subject_ids: list[int] = []
+                    for value in subject_id_values:
+                        if not value.isdigit():
+                            continue
+                        subject_id = int(value)
+                        if subject_id not in subject_ids:
+                            subject_ids.append(subject_id)
+
+                    if not subject_ids:
+                        flash(
+                            "Нужно оставить хотя бы один предмет у преподавателя.",
+                            "danger",
+                        )
+                        return redirect(url_for("diary.admin_manage_teachers"))
+                    if len(subject_ids) > 3:
+                        flash(
+                            "Можно выбрать не более трёх предметов для преподавателя.",
+                            "danger",
+                        )
+                        return redirect(url_for("diary.admin_manage_teachers"))
+
                     subjects = (
                         SubjectSetting.query.filter(SubjectSetting.id.in_(subject_ids)).all()
                         if subject_ids
                         else []
                     )
-                    if len(subjects) != 3:
+                    subjects_by_id = {subject.id: subject for subject in subjects if subject and subject.id}
+                    if len(subjects_by_id) != len(subject_ids):
                         flash(
-                            "Выберите ровно три предмета из списка, чтобы сохранить изменения.",
+                            "Некоторые выбранные предметы не найдены.",
                             "danger",
                         )
                         return redirect(url_for("diary.admin_manage_teachers"))
-                    teacher.subjects = subjects
+                    teacher.subjects = [subjects_by_id[sid] for sid in subject_ids]
                 if max_students_str:
                     try:
                         new_limit = int(max_students_str)

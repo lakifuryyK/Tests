@@ -24,7 +24,7 @@
       <input type="number" name="max_students" min="1" step="1" value="10" />
     </label>
     <fieldset class="form__field form__field--wide">
-      <legend>Предметы (выберите 3)</legend>
+      <legend>Предметы (выберите до 3)</legend>
       <div class="checkbox-grid">
         {% for subject in subject_settings %}
           <label class="checkbox">
@@ -33,7 +33,7 @@
           </label>
         {% endfor %}
       </div>
-      <small class="muted">Учитель сможет вести только указанные направления. При создании нужно выбрать ровно три дисциплины.</small>
+      <small class="muted">Учитель сможет вести только указанные направления. Можно выбрать от одного до трёх предметов.</small>
     </fieldset>
     <div class="form__actions">
       <button type="submit" class="btn btn--primary">Создать преподавателя</button>
@@ -90,7 +90,7 @@
                   </label>
                 {% endfor %}
               </div>
-              <small class="muted">Оставьте отмеченными ровно три предмета — так учитель будет работать только с ними.</small>
+              <small class="muted">Оставьте от одного до трёх предметов — преподаватель будет работать только с ними.</small>
             </fieldset>
             <div class="form__actions">
               <button type="submit" class="btn btn--primary">Сохранить</button>
