@@ -2206,6 +2206,8 @@ def student_board():
     now_naive = now_local.replace(tzinfo=None)
     today = now_naive.date()
 
+    teacher_name = student.teacher.full_name if student.teacher else None
+
     upcoming_sessions = (
         Session.query.filter(Session.student_id == student.id, Session.date >= today)
         .order_by(Session.date.asc(), Session.start_time.asc())
@@ -2499,6 +2501,7 @@ def student_board():
         "student_dashboard.html",
         student=student,
         student_first_name=first_name,
+        teacher_name=teacher_name,
         upcoming_sessions=upcoming_sessions,
         past_sessions=past_sessions,
         payments=payments,

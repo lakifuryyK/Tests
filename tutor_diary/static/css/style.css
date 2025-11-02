@@ -386,6 +386,13 @@ a {
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 
+.student-hero__teacher {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
 .student-hero__topic {
   font-weight: 600;
   font-size: 1.05rem;
@@ -1227,6 +1234,12 @@ textarea:focus {
 .timeline__content h3 {
   margin: 0;
   font-size: 1.1rem;
+}
+
+.timeline__topic {
+  margin: 0.3rem 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
 }
 
 .timeline__homework {

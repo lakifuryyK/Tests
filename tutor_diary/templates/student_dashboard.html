@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Панель ученика — {{ student.full_name }}{% endblock %}
 {% block content %}
+{% set assigned_teacher = teacher_name or (student.teacher.full_name if student.teacher else None) %}
 <section class="student-hero">
   <div>
     <h1>Привет, {{ student_first_name }}!</h1>
@@ -32,7 +33,12 @@
       <p class="student-hero__date">
         {{ next_session.date.strftime('%d %B') }} · {{ next_session.start_time.strftime('%H:%M') }}
       </p>
-      <p class="student-hero__topic">{{ next_session.topic }}</p>
+      {% if assigned_teacher %}
+        <p class="student-hero__teacher">Преподаватель: {{ assigned_teacher }}</p>
+      {% endif %}
+      {% if next_session.topic %}
+        <p class="student-hero__topic">Тема: {{ next_session.topic }}</p>
+      {% endif %}
       <div class="lesson-status lesson-status--{{ hero_state.tone }}">
         {{ hero_state.label }}
       </div>
@@ -93,7 +99,7 @@
                   {% set state = session_states.get(lesson.id) %}
                   <li class="calendar__lesson calendar__lesson--{{ state.tone if state else 'upcoming' }}">
                     <span class="calendar__lesson-time">{{ lesson.start_time.strftime('%H:%M') }}</span>
-                    <span class="calendar__lesson-topic">{{ lesson.topic }}</span>
+                    <span class="calendar__lesson-topic">{{ assigned_teacher or 'Ваш преподаватель' }}</span>
                   </li>
                 {% endfor %}
               </ul>
@@ -272,7 +278,10 @@
             <small>{{ lesson.start_time.strftime('%H:%M') }}</small>
           </div>
           <div class="timeline__content">
-            <h3>{{ lesson.topic }}</h3>
+            <h3>{{ assigned_teacher or 'Ваш преподаватель' }}</h3>
+            {% if lesson.topic %}
+              <p class="timeline__topic">{{ lesson.topic }}</p>
+            {% endif %}
             {% if lesson.homework %}<p class="timeline__homework">Подготовка: {{ lesson.homework }}</p>{% endif %}
             {% set state = session_states.get(lesson.id) %}
             <span class="lesson-status lesson-status--{{ state.tone if state else 'upcoming' }}">
