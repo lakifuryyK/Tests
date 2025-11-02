@@ -5,8 +5,8 @@
   <div>
     <h1>{{ student.full_name }}</h1>
     <p class="muted">
-      Управляйте занятиями, домашними заданиями, материалами и общением с учеником из единой
-      панели.
+      Управляйте занятиями, домашними заданиями, материалами и общением с учеником из единого
+      меню.
     </p>
   </div>
   <div class="hero__meta">
@@ -81,7 +81,9 @@
               {% if assignment.due_date %}
                 Срок: {{ assignment.due_date.strftime('%d.%m.%Y') }} ·
               {% endif %}
-              Статус: {{ assignment.status | capitalize }}
+              Статус:
+              {{ assignment_status_labels.get(assignment.status, assignment.status | replace('_', ' ') | title) }} ·
+              Оценка: {{ assignment.grade or '—' }}
             </p>
             {% if assignment.description %}
               <p class="stack__text">{{ assignment.description }}</p>
@@ -110,6 +112,15 @@
                 {% endfor %}
               </ul>
             {% endif %}
+            {% if assignment.session_id %}
+              {% set linked = sessions | selectattr('id', 'equalto', assignment.session_id) | list %}
+              {% if linked %}
+                {% set lesson = linked[0] %}
+                <p class="stack__meta stack__meta--subtle">
+                  Привязано к занятию {{ lesson.date.strftime('%d.%m.%Y') }} · {{ lesson.start_time.strftime('%H:%M') }}
+                </p>
+              {% endif %}
+            {% endif %}
             <form method="post" class="inline-form">
               <input type="hidden" name="action" value="update_assignment_status" />
               <input type="hidden" name="assignment_id" value="{{ assignment.id }}" />
@@ -124,6 +135,13 @@
                   Выполнено
                 </option>
               </select>
+              <input
+                type="text"
+                name="grade"
+                value="{{ assignment.grade or '' }}"
+                placeholder="Оценка"
+                class="inline-form__grade"
+              />
               <button type="submit" class="btn btn--ghost">Обновить</button>
             </form>
           </li>
@@ -260,7 +278,7 @@
               <span class="stack__lesson-topic">{{ lesson.topic }}</span>
             </div>
             <p class="stack__meta">
-              Длительность: {{ lesson.duration_minutes }} мин · Статус: {{ lesson.status }}
+              Длительность: {{ lesson.duration_minutes }} мин · Статус: {{ lesson.status | replace('_', ' ') | title }}
             </p>
             <p class="stack__meta">
               Оплата: {{ payment_status_choices.get(lesson.payment_status, '—') }}
@@ -273,6 +291,24 @@
             </p>
             {% if lesson.homework %}
               <p class="stack__text">ДЗ: {{ lesson.homework }}</p>
+            {% endif %}
+            {% set lesson_assignments = session_assignments.get(lesson.id, []) %}
+            {% if lesson_assignments %}
+              <ul class="lesson-homework lesson-homework--compact">
+                {% for assignment in lesson_assignments %}
+                  <li class="lesson-homework__item">
+                    <div class="lesson-homework__title">{{ assignment.title }}</div>
+                    <div class="lesson-homework__meta">
+                      <span class="lesson-homework__status lesson-homework__status--{{ assignment.status }}">
+                        {{ assignment_status_labels.get(assignment.status, assignment.status | replace('_', ' ') | title) }}
+                      </span>
+                      <span class="lesson-homework__grade">
+                        Оценка: {{ assignment.grade or '—' }}
+                      </span>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
             {% endif %}
           </li>
         {% endfor %}

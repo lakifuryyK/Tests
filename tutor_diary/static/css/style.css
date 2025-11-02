@@ -1661,6 +1661,18 @@ textarea:focus {
 
 .inline-form select {
   min-width: 160px;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  padding: 8px 12px;
+  font-size: 14px;
+  background: var(--bg-subtle);
+  transition: border-color 0.2s ease;
+}
+
+.inline-form select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-elevated);
 }
 
 .chat-thread {
@@ -2627,4 +2639,222 @@ textarea:focus {
 .chip--warning {
   background: rgba(251, 191, 36, 0.18);
   color: #92400e;
+}
+
+.inline-form__grade {
+  width: 110px;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  padding: 8px 12px;
+  font-size: 14px;
+  background: var(--bg-subtle);
+  transition: border-color 0.2s ease;
+}
+
+.inline-form__grade:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.history-filters__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.history-filters__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.history-filters__field select,
+.history-filters__field input[type="date"] {
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  padding: 8px 12px;
+  font-size: 14px;
+  background: var(--bg-subtle);
+}
+
+.history-filters__field--disabled {
+  opacity: 0.6;
+}
+
+.history-filters__custom {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.lesson-homework {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.lesson-homework--compact {
+  margin-top: 10px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 12px;
+}
+
+.lesson-homework__item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid rgba(99, 102, 241, 0.08);
+}
+
+.lesson-homework__title {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.lesson-homework__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.lesson-homework__status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lesson-homework__status--assigned {
+  background: rgba(96, 165, 250, 0.18);
+  color: #1d4ed8;
+}
+
+.lesson-homework__status--in_progress {
+  background: rgba(250, 204, 21, 0.18);
+  color: #a16207;
+}
+
+.lesson-homework__status--completed {
+  background: rgba(74, 222, 128, 0.2);
+  color: #15803d;
+}
+
+.lesson-homework__grade,
+.lesson-homework__due {
+  color: var(--text-muted);
+}
+
+.panel__meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.panel__text {
+  margin: 12px 0 18px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.template-grid {
+  display: grid;
+  gap: 24px;
+}
+
+.panel--template {
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  box-shadow: 0 10px 35px rgba(15, 23, 42, 0.04);
+}
+
+.template-section {
+  margin-top: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.template-section h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.template-attachment-form,
+.template-assign-form {
+  background: var(--bg-subtle);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px dashed rgba(99, 102, 241, 0.2);
+}
+
+.template-attachment-form .form__field,
+.template-assign-form .form__field {
+  min-width: 180px;
+}
+
+.template-attachment-form .form__field,
+.template-attachment-form .form__actions {
+  margin-bottom: 0;
+}
+
+.template-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.template-assignment-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.template-assignment-list__item {
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: var(--bg-elevated);
+}
+
+.template-assignment-list__title {
+  font-weight: 600;
+  color: var(--text-strong);
+  margin-bottom: 6px;
+}
+
+.template-assignment-list__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.attachment-list--compact .attachment {
+  padding: 8px 0;
+}
+
+.stack__meta--subtle {
+  color: var(--text-muted);
+  font-size: 13px;
 }

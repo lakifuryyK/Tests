@@ -308,6 +308,29 @@ def create_app(test_config: dict | None = None) -> Flask:
             if altered:
                 db.session.commit()
 
+        if "assignments" in table_names:
+            assignment_columns = {
+                column["name"] for column in inspector.get_columns("assignments")
+            }
+            altered = False
+            if "session_id" not in assignment_columns:
+                db.session.execute(
+                    text("ALTER TABLE assignments ADD COLUMN session_id INTEGER")
+                )
+                altered = True
+            if "template_id" not in assignment_columns:
+                db.session.execute(
+                    text("ALTER TABLE assignments ADD COLUMN template_id INTEGER")
+                )
+                altered = True
+            if "grade" not in assignment_columns:
+                db.session.execute(
+                    text("ALTER TABLE assignments ADD COLUMN grade VARCHAR(50)")
+                )
+                altered = True
+            if altered:
+                db.session.commit()
+
         if "assignment_attachments" not in table_names:
             db.session.execute(
                 text(
@@ -315,6 +338,34 @@ def create_app(test_config: dict | None = None) -> Flask:
                     "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                     "assignment_id INTEGER NOT NULL REFERENCES assignments(id)"
                     " ON DELETE CASCADE,"
+                    "title VARCHAR(255) NOT NULL,"
+                    "url VARCHAR(255),"
+                    "created_at DATETIME"
+                    ")"
+                )
+            )
+            db.session.commit()
+
+        if "homework_templates" not in table_names:
+            db.session.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS homework_templates ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,"
+                    "title VARCHAR(255) NOT NULL,"
+                    "description TEXT,"
+                    "created_at DATETIME"
+                    ")"
+                )
+            )
+            db.session.commit()
+
+        if "homework_template_attachments" not in table_names:
+            db.session.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS homework_template_attachments ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "template_id INTEGER NOT NULL REFERENCES homework_templates(id) ON DELETE CASCADE,"
                     "title VARCHAR(255) NOT NULL,"
                     "url VARCHAR(255),"
                     "created_at DATETIME"

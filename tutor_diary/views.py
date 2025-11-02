@@ -32,6 +32,8 @@ from .models import (
     AssignmentAttachment,
     AdminCommunication,
     ChatMessage,
+    HomeworkTemplate,
+    HomeworkTemplateAttachment,
     LibraryMaterial,
     Material,
     Payment,
@@ -67,6 +69,12 @@ PAYMENT_STATUS_CHOICES = {
     "unpaid": "Ожидает оплаты",
     "invoiced": "Счёт отправлен",
     "paid": "Оплачено",
+}
+
+ASSIGNMENT_STATUS_LABELS = {
+    "assigned": "Назначено",
+    "in_progress": "В работе",
+    "completed": "Выполнено",
 }
 
 AVATAR_COLORS = [
@@ -126,11 +134,33 @@ def remove_local_upload(path: str | None) -> None:
         normalized = normalized[len("uploads/") :]
     upload_root = Path(current_app.config.get("UPLOAD_FOLDER", current_app.instance_path))
     target = upload_root / normalized
+    if not target.exists() and current_app.static_folder:
+        static_target = Path(current_app.static_folder) / "uploads" / normalized
+        if static_target.exists():
+            target = static_target
     if target.is_file():
         try:
             target.unlink()
         except OSError:
             current_app.logger.debug("Не удалось удалить файл аватара %s", target)
+
+
+def clone_template_attachments(
+    template: HomeworkTemplate, assignment: Assignment
+) -> None:
+    if not template.attachments:
+        return
+    clones: list[AssignmentAttachment] = []
+    for attachment in template.attachments:
+        clones.append(
+            AssignmentAttachment(
+                assignment_id=assignment.id,
+                title=attachment.title,
+                url=attachment.url,
+            )
+        )
+    if clones:
+        db.session.add_all(clones)
 
 
 def describe_time_until(start_dt: datetime, current_dt: datetime) -> str:
@@ -1827,6 +1857,8 @@ def student_detail(student_id: int):
             ).first()
             if assignment and status:
                 assignment.status = status
+                grade_value = request.form.get("grade", "").strip() or None
+                assignment.grade = grade_value
                 db.session.commit()
                 flash("Статус задания обновлён.", "success")
         elif action == "delete_attachment":
@@ -1879,6 +1911,18 @@ def student_detail(student_id: int):
         .order_by(Session.date.desc(), Session.start_time.desc())
         .all()
     )
+    session_assignments: dict[int, list[Assignment]] = {}
+    if sessions:
+        session_ids = [lesson.id for lesson in sessions if lesson.id is not None]
+        if session_ids:
+            related_assignments = (
+                Assignment.query.filter(Assignment.session_id.in_(session_ids))
+                .order_by(Assignment.created_at.desc())
+                .all()
+            )
+            for assignment in related_assignments:
+                if assignment.session_id:
+                    session_assignments.setdefault(assignment.session_id, []).append(assignment)
     payments = Payment.query.filter_by(student_id=student.id).order_by(Payment.paid_on.desc()).all()
 
     suggested_library_items = []
@@ -1904,10 +1948,12 @@ def student_detail(student_id: int):
         materials=materials,
         messages=messages,
         sessions=sessions,
+        session_assignments=session_assignments,
         payments=payments,
         subject_profile=subject_profile,
         library_items=suggested_library_items,
         payment_status_choices=PAYMENT_STATUS_CHOICES,
+        assignment_status_labels=ASSIGNMENT_STATUS_LABELS,
     )
 
 
@@ -2045,22 +2091,284 @@ def manage_sessions():
             flash("Заполните дату, время, длительность и тему занятия.", "danger")
         return redirect(redirect_target)
 
-    sessions = (
-        Session.query.join(Student, Session.student_id == Student.id)
-        .filter(Student.teacher_id == teacher.id)
-        .order_by(Session.date.desc(), Session.start_time.desc())
-        .all()
+    history_sort = request.args.get("sort", "date")
+    history_period = request.args.get("period", "month")
+    custom_start = request.args.get("start")
+    custom_end = request.args.get("end")
+
+    sessions_query = Session.query.join(Student, Session.student_id == Student.id).filter(
+        Student.teacher_id == teacher.id
     )
+
+    today = datetime.utcnow().date()
+    start_boundary: date | None = None
+    end_boundary: date | None = None
+
+    if history_period == "month":
+        start_boundary = today - timedelta(days=30)
+    elif history_period == "three_months":
+        start_boundary = today - timedelta(days=90)
+    elif history_period == "six_months":
+        start_boundary = today - timedelta(days=182)
+    elif history_period == "year":
+        start_boundary = today - timedelta(days=365)
+    elif history_period == "custom":
+        try:
+            if custom_start:
+                start_boundary = datetime.strptime(custom_start, "%Y-%m-%d").date()
+            if custom_end:
+                end_boundary = datetime.strptime(custom_end, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Некорректный период для фильтрации истории.", "danger")
+            return redirect(url_for("diary.manage_sessions"))
+
+    if start_boundary:
+        sessions_query = sessions_query.filter(Session.date >= start_boundary)
+    if end_boundary:
+        sessions_query = sessions_query.filter(Session.date <= end_boundary)
+
+    if history_sort == "student":
+        sessions_query = sessions_query.order_by(
+            Student.full_name.asc(), Session.date.desc(), Session.start_time.desc()
+        )
+    else:
+        sessions_query = sessions_query.order_by(
+            Session.date.desc(), Session.start_time.desc(), Student.full_name.asc()
+        )
+
+    sessions = sessions_query.all()
+
+    session_assignments: dict[int, list[Assignment]] = {}
+    if sessions:
+        session_ids = [lesson.id for lesson in sessions if lesson.id is not None]
+        if session_ids:
+            related_assignments = (
+                Assignment.query.filter(Assignment.session_id.in_(session_ids))
+                .order_by(Assignment.created_at.desc())
+                .all()
+            )
+            for assignment in related_assignments:
+                if assignment.session_id:
+                    session_assignments.setdefault(assignment.session_id, []).append(assignment)
 
     return render_template(
         "sessions.html",
         sessions=sessions,
+        session_assignments=session_assignments,
         students=students,
         subject_defaults=subject_defaults,
         subject_focus=subject_focus,
         teacher_options=[],
         selected_teacher_id=None,
         payment_status_choices=PAYMENT_STATUS_CHOICES,
+        assignment_status_labels=ASSIGNMENT_STATUS_LABELS,
+        history_sort=history_sort,
+        history_period=history_period,
+        custom_start=custom_start,
+        custom_end=custom_end,
+    )
+
+
+@bp.route("/homework", methods=["GET", "POST"])
+@login_required(TEACHER_ROLE)
+def manage_homework_templates():
+    teacher = current_teacher()
+    if not teacher:
+        flash("Сессия истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
+
+    if request.method == "POST":
+        action = request.form.get("action")
+        redirect_target = url_for("diary.manage_homework_templates")
+
+        if action == "create_template":
+            title = request.form.get("title", "").strip()
+            description = request.form.get("description", "").strip() or None
+            if not title:
+                flash("Введите название домашнего задания.", "danger")
+                return redirect(redirect_target)
+            template = HomeworkTemplate(
+                teacher_id=teacher.id,
+                title=title,
+                description=description,
+            )
+            db.session.add(template)
+            db.session.commit()
+            flash("Шаблон домашнего задания создан.", "success")
+            return redirect(redirect_target)
+
+        if action == "delete_template":
+            template_id = request.form.get("template_id")
+            template = (
+                HomeworkTemplate.query.filter_by(id=template_id, teacher_id=teacher.id).first()
+                if template_id
+                else None
+            )
+            if not template:
+                flash("Шаблон не найден.", "danger")
+                return redirect(redirect_target)
+            for attachment in list(template.attachments):
+                remove_local_upload(attachment.url)
+            db.session.delete(template)
+            db.session.commit()
+            flash("Шаблон удалён.", "info")
+            return redirect(redirect_target)
+
+        if action == "add_template_attachment":
+            template_id = request.form.get("template_id")
+            template = (
+                HomeworkTemplate.query.filter_by(id=template_id, teacher_id=teacher.id).first()
+                if template_id
+                else None
+            )
+            if not template:
+                flash("Шаблон не найден.", "danger")
+                return redirect(redirect_target)
+
+            attachment_title = request.form.get("attachment_title", "").strip()
+            attachment_url = request.form.get("attachment_url", "").strip()
+            upload_file = request.files.get("attachment_file")
+
+            stored_path = None
+            if upload_file and upload_file.filename:
+                filename = secure_filename(upload_file.filename)
+                if filename:
+                    upload_root = Path(current_app.static_folder or "static") / "uploads" / "templates"
+                    upload_root.mkdir(parents=True, exist_ok=True)
+                    unique_name = (
+                        f"template_{template.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
+                    )
+                    target_path = upload_root / unique_name
+                    upload_file.save(target_path)
+                    stored_path = f"uploads/templates/{unique_name}"
+
+            if stored_path and not attachment_url:
+                attachment_url = stored_path
+
+            if not (attachment_url or attachment_title):
+                flash("Добавьте ссылку или файл для вложения.", "danger")
+                return redirect(redirect_target)
+
+            title_value = attachment_title or (upload_file.filename if upload_file and upload_file.filename else "Материал")
+            db.session.add(
+                HomeworkTemplateAttachment(
+                    template_id=template.id,
+                    title=title_value,
+                    url=attachment_url or stored_path,
+                )
+            )
+            db.session.commit()
+            flash("Вложение сохранено.", "success")
+            return redirect(redirect_target)
+
+        if action == "remove_template_attachment":
+            attachment_id_raw = request.form.get("attachment_id")
+            attachment = (
+                HomeworkTemplateAttachment.query.join(HomeworkTemplate)
+                .filter(
+                    HomeworkTemplateAttachment.id == attachment_id_raw,
+                    HomeworkTemplate.teacher_id == teacher.id,
+                )
+                .first()
+                if attachment_id_raw
+                else None
+            )
+            if not attachment:
+                flash("Вложение не найдено.", "danger")
+                return redirect(redirect_target)
+            remove_local_upload(attachment.url)
+            db.session.delete(attachment)
+            db.session.commit()
+            flash("Вложение удалено.", "info")
+            return redirect(redirect_target)
+
+        if action == "assign_template":
+            template_id = request.form.get("template_id")
+            template = (
+                HomeworkTemplate.query.filter_by(id=template_id, teacher_id=teacher.id).first()
+                if template_id
+                else None
+            )
+            if not template:
+                flash("Шаблон не найден.", "danger")
+                return redirect(redirect_target)
+
+            session_id_raw = request.form.get("session_id")
+            student_id_raw = request.form.get("student_id")
+            due_date_str = request.form.get("due_date")
+
+            target_student: Student | None = None
+            target_session: Session | None = None
+
+            if session_id_raw and session_id_raw.isdigit():
+                target_session = Session.query.get(int(session_id_raw))
+                if not target_session or target_session.student.teacher_id != teacher.id:
+                    flash("Выберите занятие своего ученика.", "danger")
+                    return redirect(redirect_target)
+                target_student = target_session.student
+            elif student_id_raw and student_id_raw.isdigit():
+                target_student = Student.query.get(int(student_id_raw))
+                if not target_student or target_student.teacher_id != teacher.id:
+                    flash("Выберите ученика из своего списка.", "danger")
+                    return redirect(redirect_target)
+            else:
+                flash("Выберите ученика или занятие для прикрепления.", "danger")
+                return redirect(redirect_target)
+
+            due_date_value = None
+            if due_date_str:
+                try:
+                    due_date_value = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    flash("Введите корректную дату дедлайна.", "danger")
+                    return redirect(redirect_target)
+
+            assignment = Assignment(
+                student_id=target_student.id,
+                session_id=target_session.id if target_session else None,
+                template_id=template.id,
+                title=template.title,
+                description=template.description,
+                due_date=due_date_value,
+            )
+            db.session.add(assignment)
+            db.session.commit()
+            clone_template_attachments(template, assignment)
+            db.session.commit()
+
+            if target_session and not target_session.homework:
+                target_session.homework = template.title
+                db.session.commit()
+
+            flash("Шаблон прикреплён к ученику.", "success")
+            return redirect(redirect_target)
+
+    templates = (
+        HomeworkTemplate.query.filter_by(teacher_id=teacher.id)
+        .order_by(HomeworkTemplate.created_at.desc())
+        .all()
+    )
+    students = (
+        Student.query.filter_by(teacher_id=teacher.id)
+        .order_by(Student.full_name.asc())
+        .all()
+    )
+    upcoming_sessions = (
+        Session.query.join(Student, Session.student_id == Student.id)
+        .filter(
+            Student.teacher_id == teacher.id,
+            Session.date >= datetime.utcnow().date() - timedelta(days=7),
+        )
+        .order_by(Session.date.asc(), Session.start_time.asc())
+        .all()
+    )
+
+    return render_template(
+        "homework_templates.html",
+        templates=templates,
+        students=students,
+        upcoming_sessions=upcoming_sessions,
+        assignment_status_labels=ASSIGNMENT_STATUS_LABELS,
     )
 
 

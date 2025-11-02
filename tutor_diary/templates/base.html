@@ -22,7 +22,7 @@
       </div>
       <nav class="navbar__menu">
         {% if session.get('role') == 'admin' %}
-          <a href="{{ url_for('diary.admin_dashboard') }}" class="navbar__link">Админ-панель</a>
+          <a href="{{ url_for('diary.admin_dashboard') }}" class="navbar__link">Админ-меню</a>
           <a href="{{ url_for('diary.admin_stats') }}" class="navbar__link">Статистика</a>
           <a href="{{ url_for('diary.admin_manage_teachers') }}" class="navbar__link">Преподаватели</a>
           <a href="{{ url_for('diary.admin_manage_students') }}" class="navbar__link">Ученики</a>
@@ -31,14 +31,15 @@
           <a href="{{ url_for('diary.manage_subjects') }}" class="navbar__link">Предметы</a>
           <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
         {% elif session.get('role') == 'teacher' %}
-          <a href="{{ url_for('diary.index') }}" class="navbar__link">Панель</a>
+          <a href="{{ url_for('diary.index') }}" class="navbar__link">Меню</a>
           <a href="{{ url_for('diary.manage_students') }}" class="navbar__link">Ученики</a>
           <a href="{{ url_for('diary.manage_sessions') }}" class="navbar__link">Занятия</a>
           <a href="{{ url_for('diary.manage_payments') }}" class="navbar__link">Финансы</a>
-          <a href="{{ url_for('diary.manage_library') }}" class="navbar__link">Библиотека</a>
+          <a href="{{ url_for('diary.manage_homework_templates') }}" class="navbar__link">Домашние задания</a>
+          <a href="{{ url_for('diary.manage_library') }}" class="navbar__link">Материалы</a>
           <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
         {% elif session.get('role') == 'student' %}
-          <a href="{{ url_for('diary.student_board') }}" class="navbar__link">Панель</a>
+          <a href="{{ url_for('diary.student_board') }}" class="navbar__link">Меню</a>
           <a href="{{ url_for('diary.student_homework') }}" class="navbar__link">ДЗ</a>
           <a href="{{ url_for('diary.student_materials') }}" class="navbar__link">Материалы</a>
           <a href="{{ url_for('diary.student_chat') }}" class="navbar__link">Чат</a>

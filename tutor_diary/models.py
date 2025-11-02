@@ -110,6 +110,8 @@ class Session(db.Model):
     join_link = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
+    assignments = db.relationship("Assignment", backref="session", lazy=True)
+
 
 class Payment(db.Model):
     __tablename__ = "payments"
@@ -130,10 +132,15 @@ class Assignment(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    session_id = db.Column(db.Integer, db.ForeignKey("sessions.id"), nullable=True)
+    template_id = db.Column(
+        db.Integer, db.ForeignKey("homework_templates.id"), nullable=True
+    )
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
     due_date = db.Column(db.Date, nullable=True)
     status = db.Column(db.String(50), default="assigned", nullable=False)
+    grade = db.Column(db.String(50), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     attachments = db.relationship(
@@ -212,6 +219,12 @@ class Teacher(db.Model):
         lazy="joined",
         backref=db.backref("teachers", lazy="dynamic"),
     )
+    homework_templates = db.relationship(
+        "HomeworkTemplate",
+        backref="teacher",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
     communications = db.relationship(
         "AdminCommunication",
         primaryjoin="AdminCommunication.teacher_id == Teacher.id",
@@ -249,4 +262,34 @@ class LibraryMaterial(db.Model):
     url = db.Column(db.String(255), nullable=True)
     description = db.Column(db.Text, nullable=True)
     tags = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class HomeworkTemplate(db.Model):
+    __tablename__ = "homework_templates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    assignments = db.relationship("Assignment", backref="template", lazy=True)
+    attachments = db.relationship(
+        "HomeworkTemplateAttachment",
+        backref="template",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+
+class HomeworkTemplateAttachment(db.Model):
+    __tablename__ = "homework_template_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(
+        db.Integer, db.ForeignKey("homework_templates.id"), nullable=False
+    )
+    title = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
