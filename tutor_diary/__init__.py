@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import os
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -15,6 +16,9 @@ except ImportError:  # pragma: no cover - keep compatibility with exotic Python 
     ZoneInfo = None  # type: ignore[assignment]
     ZoneInfoNotFoundError = Exception  # type: ignore[assignment]
 
+
+os.environ.setdefault("FLASK_RUN_HOST", "127.0.0.1")
+os.environ.setdefault("FLASK_RUN_PORT", "5050")
 
 db = SQLAlchemy()
 migrate = Migrate() if Migrate is not None else None
