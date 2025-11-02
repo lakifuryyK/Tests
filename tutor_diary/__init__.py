@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import os
+from pathlib import Path
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -112,6 +113,10 @@ def create_app(test_config: dict | None = None) -> Flask:
         SQLALCHEMY_DATABASE_URI="sqlite:///tutor_diary.db",
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
     )
+
+    upload_root = Path(app.instance_path) / "uploads"
+    upload_root.mkdir(parents=True, exist_ok=True)
+    app.config.setdefault("UPLOAD_FOLDER", str(upload_root))
 
     if test_config:
         app.config.update(test_config)

@@ -16,6 +16,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_from_directory,
     session,
     url_for,
 )
@@ -93,6 +94,43 @@ def avatar_color_for_name(full_name: str | None) -> str:
         return AVATAR_COLORS[0]
     score = sum(ord(char) for char in full_name)
     return AVATAR_COLORS[score % len(AVATAR_COLORS)]
+
+
+def resolve_upload_url(path: str | None) -> str | None:
+    if not path:
+        return None
+    if path.startswith("http"):
+        return path
+    normalized = path.lstrip("/")
+    if normalized.startswith("static/"):
+        return url_for("static", filename=normalized[7:])
+    if normalized.startswith("uploads/"):
+        uploads_relative = normalized[len("uploads/") :]
+        upload_root = Path(current_app.config.get("UPLOAD_FOLDER", current_app.instance_path))
+        if (upload_root / uploads_relative).exists():
+            return url_for("diary.uploaded_media", filename=uploads_relative)
+        return url_for("static", filename=normalized)
+    upload_root = Path(current_app.config.get("UPLOAD_FOLDER", current_app.instance_path))
+    if (upload_root / normalized).exists():
+        return url_for("diary.uploaded_media", filename=normalized)
+    return url_for("static", filename=normalized)
+
+
+def remove_local_upload(path: str | None) -> None:
+    if not path or path.startswith("http"):
+        return
+    normalized = path.lstrip("/")
+    if normalized.startswith("static/"):
+        return
+    if normalized.startswith("uploads/"):
+        normalized = normalized[len("uploads/") :]
+    upload_root = Path(current_app.config.get("UPLOAD_FOLDER", current_app.instance_path))
+    target = upload_root / normalized
+    if target.is_file():
+        try:
+            target.unlink()
+        except OSError:
+            current_app.logger.debug("Не удалось удалить файл аватара %s", target)
 
 
 def describe_time_until(start_dt: datetime, current_dt: datetime) -> str:
@@ -183,19 +221,19 @@ def inject_active_student() -> dict[str, object]:
     student = current_student()
     if not student:
         return {}
-    avatar_url = None
-    if student.avatar_path:
-        avatar_url = (
-            student.avatar_path
-            if student.avatar_path.startswith("http")
-            else url_for("static", filename=student.avatar_path)
-        )
+    avatar_url = resolve_upload_url(student.avatar_path)
     return {
         "active_student": student,
         "active_student_initials": initials_from_name(student.full_name),
         "active_student_avatar_color": avatar_color_for_name(student.full_name),
         "active_student_avatar_url": avatar_url,
     }
+
+
+@bp.route("/media/<path:filename>")
+def uploaded_media(filename: str):
+    upload_root = Path(current_app.config.get("UPLOAD_FOLDER", current_app.instance_path))
+    return send_from_directory(upload_root, filename)
 
 
 @bp.route("/")
@@ -2619,29 +2657,27 @@ def student_profile():
             student.set_password(new_password)
 
         avatar_file = request.files.get("avatar")
+        upload_root = Path(current_app.config.get("UPLOAD_FOLDER", current_app.instance_path)) / "avatars"
         if avatar_file and avatar_file.filename:
-            upload_root = Path(current_app.static_folder or "static") / "uploads" / "avatars"
             upload_root.mkdir(parents=True, exist_ok=True)
             filename = secure_filename(avatar_file.filename)
             if filename:
-                unique_name = f"student_{student.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
+                unique_name = (
+                    f"student_{student.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
+                )
                 target_path = upload_root / unique_name
                 avatar_file.save(target_path)
-                student.avatar_path = f"uploads/avatars/{unique_name}"
+                remove_local_upload(student.avatar_path)
+                student.avatar_path = f"avatars/{unique_name}"
         elif remove_avatar:
+            remove_local_upload(student.avatar_path)
             student.avatar_path = None
 
         db.session.commit()
         flash("Профиль обновлён.", "success")
         return redirect(url_for("diary.student_profile"))
 
-    avatar_url = None
-    if student.avatar_path:
-        avatar_url = (
-            student.avatar_path
-            if student.avatar_path.startswith("http")
-            else url_for("static", filename=student.avatar_path)
-        )
+    avatar_url = resolve_upload_url(student.avatar_path)
 
     return render_template(
         "student_profile.html",
