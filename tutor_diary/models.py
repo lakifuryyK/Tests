@@ -199,6 +199,9 @@ class Teacher(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    last_name = db.Column(db.String(120), nullable=True)
+    first_name = db.Column(db.String(80), nullable=True)
+    patronymic = db.Column(db.String(120), nullable=True)
     max_students = db.Column(db.Integer, nullable=False, default=10)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -221,6 +224,20 @@ class Teacher(db.Model):
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def full_name(self) -> str:
+        parts = [
+            part.strip()
+            for part in (self.last_name, self.first_name, self.patronymic)
+            if part and part.strip()
+        ]
+        return " ".join(parts)
+
+    @property
+    def display_name(self) -> str:
+        name = self.full_name
+        return name if name else self.username
 
 
 class LibraryMaterial(db.Model):

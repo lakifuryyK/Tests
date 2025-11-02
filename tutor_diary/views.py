@@ -524,7 +524,7 @@ def index():
         )
 
     focus_summary = {
-        "title": f"{greeting}, {teacher.username}!",
+        "title": f"{greeting}, {teacher.display_name}!",
         "message": summary_message,
         "tone": focus_tone,
     }
@@ -937,6 +937,9 @@ def admin_manage_teachers():
             username = request.form.get("username", "").strip()
             password = request.form.get("password", "").strip()
             max_students_str = request.form.get("max_students", "").strip()
+            last_name = request.form.get("last_name", "").strip()
+            first_name = request.form.get("first_name", "").strip()
+            patronymic = request.form.get("patronymic", "").strip()
             subject_id_values = request.form.getlist("subject_ids")
             try:
                 max_students = int(max_students_str) if max_students_str else 10
@@ -944,6 +947,11 @@ def admin_manage_teachers():
                 max_students = 10
             if not username or not password:
                 flash("Укажите логин и пароль преподавателя.", "danger")
+            elif not last_name or not first_name:
+                flash(
+                    "Введите фамилию и имя преподавателя. Отчество можно указать при наличии.",
+                    "danger",
+                )
             elif Teacher.query.filter_by(username=username).first():
                 flash("Преподаватель с таким логином уже существует.", "danger")
             else:
@@ -975,6 +983,9 @@ def admin_manage_teachers():
                     username=username,
                     max_students=max(1, max_students),
                     owner_id=admin_user.id,
+                    last_name=last_name,
+                    first_name=first_name,
+                    patronymic=patronymic or None,
                 )
                 teacher.set_password(password)
                 teacher.subjects = [subjects_by_id[sid] for sid in subject_ids]
@@ -993,6 +1004,18 @@ def admin_manage_teachers():
             else:
                 max_students_str = request.form.get("max_students", "").strip()
                 new_password = request.form.get("password", "").strip()
+                last_name = request.form.get("last_name", "").strip()
+                first_name = request.form.get("first_name", "").strip()
+                patronymic = request.form.get("patronymic", "").strip()
+                if not last_name or not first_name:
+                    flash(
+                        "Укажите фамилию и имя преподавателя перед сохранением.",
+                        "danger",
+                    )
+                    return redirect(url_for("diary.admin_manage_teachers"))
+                teacher.last_name = last_name
+                teacher.first_name = first_name
+                teacher.patronymic = patronymic or None
                 subject_id_values = request.form.getlist("subject_ids")
                 if subject_id_values:
                     subject_ids: list[int] = []
@@ -1073,6 +1096,7 @@ def admin_manage_teachers():
                 teacher.subjects,
                 key=lambda subject: subject.name.lower() if subject and subject.name else "",
             ),
+            "display_name": teacher.display_name,
         }
         for teacher in teachers
     ]
@@ -1389,7 +1413,9 @@ def admin_messages():
                     )
                 )
                 db.session.commit()
-                flash(f"Сообщение отправлено преподавателю {teacher.username}.", "success")
+                flash(
+                    f"Сообщение отправлено преподавателю {teacher.display_name}.", "success"
+                )
         elif action == "subject_group":
             subject_id_raw = request.form.get("subject_id")
             subject = (
@@ -2206,7 +2232,7 @@ def student_board():
     now_naive = now_local.replace(tzinfo=None)
     today = now_naive.date()
 
-    teacher_name = student.teacher.full_name if student.teacher else None
+    teacher_name = student.teacher.display_name if student.teacher else None
 
     upcoming_sessions = (
         Session.query.filter(Session.student_id == student.id, Session.date >= today)

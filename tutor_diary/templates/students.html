@@ -25,7 +25,7 @@
         <select name="assigned_teacher_id" required>
           <option value="">Выберите преподавателя</option>
           {% for teacher in teacher_options %}
-            <option value="{{ teacher.id }}">{{ teacher.username }} · лимит {{ teacher.max_students }}</option>
+          <option value="{{ teacher.id }}">{{ teacher.display_name }} · {{ teacher.username }} · лимит {{ teacher.max_students }}</option>
           {% endfor %}
         </select>
       </label>
@@ -95,7 +95,7 @@
             <option value="">Все преподаватели</option>
             {% for teacher in teacher_options %}
               <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
-                {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+                {{ teacher.display_name }} · {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
               </option>
             {% endfor %}
           </select>
@@ -127,7 +127,13 @@
             {% if is_admin %}
               <div>
                 <dt>Преподаватель</dt>
-                <dd>{{ student.teacher.username if student.teacher else 'Не назначен' }}</dd>
+                <dd>
+                  {% if student.teacher %}
+                    {{ student.teacher.display_name }} · {{ student.teacher.username }}
+                  {% else %}
+                    Не назначен
+                  {% endif %}
+                </dd>
               </div>
             {% endif %}
             <div>
@@ -150,11 +156,11 @@
                 <label class="sr-only" for="reassign-{{ student.id }}">Новый преподаватель</label>
                 <select name="new_teacher_id" id="reassign-{{ student.id }}">
                   <option value="">Выберите преподавателя</option>
-                  {% for option in teacher_options %}
-                    <option value="{{ option.id }}" {% if student.teacher and student.teacher.id == option.id %}selected{% endif %}>
-                      {{ option.username }} · лимит {{ option.max_students }}
-                    </option>
-                  {% endfor %}
+                    {% for option in teacher_options %}
+                      <option value="{{ option.id }}" {% if student.teacher and student.teacher.id == option.id %}selected{% endif %}>
+                        {{ option.display_name }} · {{ option.username }} · лимит {{ option.max_students }}
+                      </option>
+                    {% endfor %}
                 </select>
                 <button type="submit" class="btn btn--ghost btn--mini">Переназначить</button>
               </form>

@@ -16,7 +16,7 @@
           <option value="">Все преподаватели</option>
           {% for teacher in teacher_options %}
             <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
-              {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+              {{ teacher.display_name }} · {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
             </option>
           {% endfor %}
         </select>
@@ -41,7 +41,7 @@
               {% if is_focus %}selected{% endif %}
             >
               {{ student.full_name }}{% if student.subject %} — {{ student.subject }}{% endif %}
-              {% if student.teacher %} ({{ student.teacher.username }}){% endif %}
+              {% if student.teacher %} ({{ student.teacher.display_name }}){% endif %}
             </option>
           {% endfor %}
         </select>
@@ -131,7 +131,7 @@
           <option value="">Все преподаватели</option>
           {% for teacher in teacher_options %}
             <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
-              {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+              {{ teacher.display_name }} · {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
             </option>
           {% endfor %}
         </select>

@@ -63,7 +63,7 @@
         <tbody>
           {% for entry in teacher_stats %}
             <tr class="{% if entry.over_limit %}table__row--alert{% endif %}">
-              <td>{{ entry.teacher.username }}</td>
+              <td>{{ entry.teacher.display_name }} · {{ entry.teacher.username }}</td>
               <td>{{ entry.student_count }}</td>
               <td>{{ entry.teacher.max_students }}</td>
               <td>
@@ -98,7 +98,14 @@
             </div>
             <div class="timeline__content">
               <h3>{{ session.student.full_name }}</h3>
-              <p>Преподаватель: {{ session.student.teacher.username if session.student.teacher else 'Не назначен' }}</p>
+            <p>
+              Преподаватель:
+              {% if session.student.teacher %}
+                {{ session.student.teacher.display_name }} · {{ session.student.teacher.username }}
+              {% else %}
+                Не назначен
+              {% endif %}
+            </p>
               <p>{{ session.topic }}</p>
             </div>
           </li>

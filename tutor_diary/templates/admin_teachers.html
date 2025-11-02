@@ -12,6 +12,18 @@
   <form method="post" class="form form--grid">
     <input type="hidden" name="action" value="create" />
     <label class="form__field">
+      <span>Фамилия</span>
+      <input type="text" name="last_name" placeholder="Иванова" required />
+    </label>
+    <label class="form__field">
+      <span>Имя</span>
+      <input type="text" name="first_name" placeholder="Мария" required />
+    </label>
+    <label class="form__field">
+      <span>Отчество (при наличии)</span>
+      <input type="text" name="patronymic" placeholder="Александровна" />
+    </label>
+    <label class="form__field">
       <span>Логин</span>
       <input type="text" name="username" placeholder="Например, teacher01" required />
     </label>
@@ -51,7 +63,10 @@
       {% for entry in teacher_stats %}
         <article class="teacher-card">
           <header class="teacher-card__header">
-            <h3>{{ entry.teacher.username }}</h3>
+            <div>
+              <h3>{{ entry.display_name }}</h3>
+              <p class="muted">Логин: {{ entry.teacher.username }}</p>
+            </div>
             <span class="chip chip--light">{{ entry.student_count }} / {{ entry.limit }} учеников</span>
           </header>
           {% if entry.subjects %}
@@ -67,6 +82,18 @@
           <form method="post" class="form form--stack">
             <input type="hidden" name="action" value="update" />
             <input type="hidden" name="teacher_id" value="{{ entry.teacher.id }}" />
+            <label class="form__field">
+              <span>Фамилия</span>
+              <input type="text" name="last_name" value="{{ entry.teacher.last_name or '' }}" required />
+            </label>
+            <label class="form__field">
+              <span>Имя</span>
+              <input type="text" name="first_name" value="{{ entry.teacher.first_name or '' }}" required />
+            </label>
+            <label class="form__field">
+              <span>Отчество (при наличии)</span>
+              <input type="text" name="patronymic" value="{{ entry.teacher.patronymic or '' }}" />
+            </label>
             <label class="form__field">
               <span>Новый лимит учеников</span>
               <input type="number" name="max_students" min="1" step="1" value="{{ entry.limit }}" />

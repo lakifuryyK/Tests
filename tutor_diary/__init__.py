@@ -252,6 +252,21 @@ def create_app(test_config: dict | None = None) -> Flask:
             if "owner_id" not in teacher_columns:
                 db.session.execute(text("ALTER TABLE teachers ADD COLUMN owner_id INTEGER"))
                 altered = True
+            if "last_name" not in teacher_columns:
+                db.session.execute(
+                    text("ALTER TABLE teachers ADD COLUMN last_name VARCHAR(120)")
+                )
+                altered = True
+            if "first_name" not in teacher_columns:
+                db.session.execute(
+                    text("ALTER TABLE teachers ADD COLUMN first_name VARCHAR(80)")
+                )
+                altered = True
+            if "patronymic" not in teacher_columns:
+                db.session.execute(
+                    text("ALTER TABLE teachers ADD COLUMN patronymic VARCHAR(120)")
+                )
+                altered = True
             if altered:
                 db.session.commit()
             db.session.execute(

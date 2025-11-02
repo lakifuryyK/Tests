@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Панель ученика — {{ student.full_name }}{% endblock %}
 {% block content %}
-{% set assigned_teacher = teacher_name or (student.teacher.full_name if student.teacher else None) %}
+{% set assigned_teacher = teacher_name or (student.teacher.display_name if student.teacher else None) %}
 <section class="student-hero">
   <div>
     <h1>Привет, {{ student_first_name }}!</h1>

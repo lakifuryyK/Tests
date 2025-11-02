@@ -14,7 +14,7 @@
           <option value="" disabled selected>Выберите ученика</option>
           {% for student in students %}
             <option value="{{ student.id }}">
-              {{ student.full_name }}{% if student.teacher %} ({{ student.teacher.username }}){% endif %}
+              {{ student.full_name }}{% if student.teacher %} ({{ student.teacher.display_name }}){% endif %}
             </option>
           {% endfor %}
         </select>
