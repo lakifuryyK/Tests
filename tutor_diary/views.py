@@ -81,6 +81,13 @@ def current_teacher() -> Teacher | None:
     return Teacher.query.get(teacher_id)
 
 
+def current_student() -> Student | None:
+    student_id = session.get("student_id")
+    if not student_id:
+        return None
+    return Student.query.get(student_id)
+
+
 def ensure_teacher_access(student: Student) -> None:
     if session.get("role") != TEACHER_ROLE:
         abort(403)
@@ -1437,8 +1444,14 @@ def logout():
 @bp.route("/student/board")
 @login_required(STUDENT_ROLE)
 def student_board():
-    student_id = session.get("student_id")
-    student = Student.query.get_or_404(student_id)
+    student = current_student()
+    if not student:
+        session.clear()
+        flash(
+            "Не удалось найти профиль ученика. Пожалуйста, войдите снова.",
+            "warning",
+        )
+        return redirect(url_for("diary.login"))
 
     today = datetime.utcnow().date()
     upcoming_sessions = (
@@ -1661,8 +1674,14 @@ def student_board():
 @bp.route("/student/chat", methods=["GET", "POST"])
 @login_required(STUDENT_ROLE)
 def student_chat():
-    student_id = session.get("student_id")
-    student = Student.query.get_or_404(student_id)
+    student = current_student()
+    if not student:
+        session.clear()
+        flash(
+            "Диалог недоступен, потому что аккаунт ученика был удалён. Войдите снова.",
+            "warning",
+        )
+        return redirect(url_for("diary.login"))
 
     if request.method == "POST":
         content = request.form.get("content", "").strip()
@@ -1684,8 +1703,14 @@ def student_chat():
 @bp.route("/student/homework", methods=["GET", "POST"])
 @login_required(STUDENT_ROLE)
 def student_homework():
-    student_id = session.get("student_id")
-    student = Student.query.get_or_404(student_id)
+    student = current_student()
+    if not student:
+        session.clear()
+        flash(
+            "Домашние задания недоступны: аккаунт ученика не найден. Войдите снова.",
+            "warning",
+        )
+        return redirect(url_for("diary.login"))
 
     if request.method == "POST":
         assignment_id = request.form.get("assignment_id")
@@ -1707,8 +1732,14 @@ def student_homework():
 @bp.route("/student/materials")
 @login_required(STUDENT_ROLE)
 def student_materials():
-    student_id = session.get("student_id")
-    student = Student.query.get_or_404(student_id)
+    student = current_student()
+    if not student:
+        session.clear()
+        flash(
+            "Материалы недоступны: аккаунт ученика был удалён. Войдите снова.",
+            "warning",
+        )
+        return redirect(url_for("diary.login"))
 
     materials = (
         Material.query.filter_by(student_id=student.id)
