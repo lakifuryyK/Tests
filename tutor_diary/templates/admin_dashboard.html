@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Админ-панель — ОбразОн{% endblock %}
+{% block content %}
+<section class="dashboard-intro">
+  <div class="dashboard-intro__content">
+    <h1>Администрирование ОбразОна</h1>
+    <p>
+      Управляйте преподавателями, лимитами и глобальными настройками сервиса. Здесь собраны ключевые
+      показатели по всей системе.
+    </p>
+    <div class="dashboard-intro__cta">
+      <a class="btn btn--primary" href="{{ url_for('diary.admin_manage_teachers') }}">Управлять преподавателями</a>
+      <a class="btn btn--ghost" href="{{ url_for('diary.admin_manage_students') }}">Все ученики</a>
+    </div>
+  </div>
+  <div class="dashboard-intro__art" aria-hidden="true">
+    <div class="orbit">
+      <span class="orbit__planet"></span>
+      <span class="orbit__satellite"></span>
+    </div>
+  </div>
+</section>
+
+<section class="grid grid--stats">
+  <article class="card card--gradient">
+    <h2>Преподаватели</h2>
+    <p class="card__value">{{ teacher_count }}</p>
+    <p class="card__meta">Активных аккаунтов</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Ученики</h2>
+    <p class="card__value">{{ student_count }}</p>
+    <p class="card__meta">Всего по системе</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Занятия</h2>
+    <p class="card__value">{{ session_count }}</p>
+    <p class="card__meta">Запланированных и проведённых уроков</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Оплачено</h2>
+    <p class="card__value">{{ '{:,.2f}'.format(payment_total).replace(',', ' ') }} ₽</p>
+    <p class="card__meta">Совокупный объём оплат</p>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Статус преподавателей</h2>
+    <a class="chip" href="{{ url_for('diary.admin_manage_teachers') }}">Настроить лимиты</a>
+  </div>
+  {% if teacher_stats %}
+    <div class="table-wrapper">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            <th>Логин</th>
+            <th>Ученики</th>
+            <th>Лимит</th>
+            <th>Осталось мест</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in teacher_stats %}
+            <tr class="{% if entry.over_limit %}table__row--alert{% endif %}">
+              <td>{{ entry.teacher.username }}</td>
+              <td>{{ entry.student_count }}</td>
+              <td>{{ entry.teacher.max_students }}</td>
+              <td>
+                {% if entry.over_limit %}
+                  <span class="chip chip--danger chip--mini">Заполнен</span>
+                {% else %}
+                  {{ entry.limit_remaining }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Пока не создано ни одного преподавателя.</p>
+  {% endif %}
+</section>
+
+<section class="grid grid--two">
+  <article class="panel">
+    <div class="panel__header">
+      <h2>Ближайшие занятия (7 дней)</h2>
+    </div>
+    {% if sessions_next_week %}
+      <ul class="timeline">
+        {% for session in sessions_next_week %}
+          <li class="timeline__item">
+            <div class="timeline__date">
+              <span>{{ session.date.strftime('%d.%m') }}</span>
+              <small>{{ session.start_time.strftime('%H:%M') }}</small>
+            </div>
+            <div class="timeline__content">
+              <h3>{{ session.student.full_name }}</h3>
+              <p>Преподаватель: {{ session.student.teacher.username if session.student.teacher else 'Не назначен' }}</p>
+              <p>{{ session.topic }}</p>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Занятий на ближайшую неделю нет.</p>
+    {% endif %}
+  </article>
+  <article class="panel">
+    <div class="panel__header">
+      <h2>Ученики без преподавателя</h2>
+    </div>
+    {% if unassigned_students %}
+      <ul class="stack">
+        {% for student in unassigned_students %}
+          <li class="stack__item">
+            <div class="stack__title">{{ student.full_name }}</div>
+            <p class="stack__meta">Логин: {{ student.username }}</p>
+            <a class="link" href="{{ url_for('diary.admin_manage_students') }}">Назначить преподавателя</a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Все ученики закреплены за преподавателями.</p>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

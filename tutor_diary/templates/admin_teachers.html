@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Преподаватели — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Создать преподавателя</h2>
+    <p class="muted">
+      Администратор управляет всеми аккаунтами преподавателей. Здесь вы можете задать лимит учеников и
+      первоначальный пароль.
+    </p>
+  </div>
+  <form method="post" class="form form--grid">
+    <input type="hidden" name="action" value="create" />
+    <label class="form__field">
+      <span>Логин</span>
+      <input type="text" name="username" placeholder="Например, teacher01" required />
+    </label>
+    <label class="form__field">
+      <span>Пароль</span>
+      <input type="password" name="password" placeholder="Временный пароль" required />
+    </label>
+    <label class="form__field">
+      <span>Лимит учеников</span>
+      <input type="number" name="max_students" min="1" step="1" value="10" />
+    </label>
+    <div class="form__actions">
+      <button type="submit" class="btn btn--primary">Создать преподавателя</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Аккаунты преподавателей</h2>
+    <span class="chip">{{ teacher_stats|length }} аккаунтов</span>
+  </div>
+  {% if teacher_stats %}
+    <div class="teacher-grid">
+      {% for entry in teacher_stats %}
+        <article class="teacher-card">
+          <header class="teacher-card__header">
+            <h3>{{ entry.teacher.username }}</h3>
+            <span class="chip chip--light">{{ entry.student_count }} / {{ entry.limit }} учеников</span>
+          </header>
+          <p class="muted">Создан {{ entry.teacher.created_at.strftime('%d.%m.%Y') }}</p>
+          <form method="post" class="form form--stack">
+            <input type="hidden" name="action" value="update" />
+            <input type="hidden" name="teacher_id" value="{{ entry.teacher.id }}" />
+            <label class="form__field">
+              <span>Новый лимит учеников</span>
+              <input type="number" name="max_students" min="1" step="1" value="{{ entry.limit }}" />
+            </label>
+            <label class="form__field">
+              <span>Сбросить пароль</span>
+              <input type="password" name="password" placeholder="Оставьте пустым, чтобы не менять" />
+            </label>
+            <div class="form__actions">
+              <button type="submit" class="btn btn--primary">Сохранить</button>
+            </div>
+          </form>
+          <form method="post" class="inline-form" onsubmit="return confirm('Удалить преподавателя? Ученики останутся без назначения.');">
+            <input type="hidden" name="action" value="delete" />
+            <input type="hidden" name="teacher_id" value="{{ entry.teacher.id }}" />
+            <button type="submit" class="btn btn--ghost">Удалить</button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Ещё не создано ни одного преподавателя.</p>
+  {% endif %}
+</section>
+{% endblock %}

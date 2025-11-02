@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block title %}{{ student.full_name }} — управление{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>{{ student.full_name }}</h1>
+    <p class="muted">
+      Управляйте занятиями, домашними заданиями, материалами и общением с учеником из единой
+      панели.
+    </p>
+  </div>
+  <div class="hero__meta">
+    {% if subject_profile %}
+      <span class="chip chip--accent" style="--chip-accent: {{ subject_profile.color }}">
+        {{ subject_profile.name }} · {{ subject_profile.default_duration }} мин.
+      </span>
+    {% else %}
+      <span class="chip">{{ student.subject or 'Без предмета' }}</span>
+    {% endif %}
+    <span class="chip">Логин: {{ student.username }}</span>
+  </div>
+</section>
+
+{% if subject_profile and subject_profile.description %}
+  <section class="panel panel--subject-note">
+    <h2>Портрет предмета</h2>
+    <p>{{ subject_profile.description }}</p>
+  </section>
+{% endif %}
+
+<section class="grid grid--two">
+  <article class="panel">
+    <div class="panel__header">
+      <h2>Домашние задания</h2>
+      <button class="chip chip--light" data-toggle="assignment">Новое</button>
+    </div>
+    <form method="post" class="form hidden" data-form="assignment">
+      <input type="hidden" name="action" value="add_assignment" />
+      <label class="form__field">
+        <span>Название</span>
+        <input type="text" name="title" placeholder="Тема" required />
+      </label>
+      <label class="form__field">
+        <span>Описание</span>
+        <textarea name="description" rows="3" placeholder="Ключевые задачи"></textarea>
+      </label>
+      <label class="form__field">
+        <span>Сдать до</span>
+        <input type="date" name="due_date" />
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Сохранить</button>
+      </div>
+    </form>
+    {% if assignments %}
+      <ul class="stack">
+        {% for assignment in assignments %}
+          <li class="stack__item">
+            <div class="stack__title">{{ assignment.title }}</div>
+            <p class="stack__meta">
+              {% if assignment.due_date %}
+                Срок: {{ assignment.due_date.strftime('%d.%m.%Y') }} ·
+              {% endif %}
+              Статус: {{ assignment.status | capitalize }}
+            </p>
+            {% if assignment.description %}
+              <p class="stack__text">{{ assignment.description }}</p>
+            {% endif %}
+            <form method="post" class="inline-form">
+              <input type="hidden" name="action" value="update_assignment_status" />
+              <input type="hidden" name="assignment_id" value="{{ assignment.id }}" />
+              <select name="status">
+                <option value="assigned" {% if assignment.status == 'assigned' %}selected{% endif %}>
+                  Назначено
+                </option>
+                <option value="in_progress" {% if assignment.status == 'in_progress' %}selected{% endif %}>
+                  В работе
+                </option>
+                <option value="completed" {% if assignment.status == 'completed' %}selected{% endif %}>
+                  Выполнено
+                </option>
+              </select>
+              <button type="submit" class="btn btn--ghost">Обновить</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Пока нет заданий.</p>
+    {% endif %}
+  </article>
+
+  <article class="panel">
+    <div class="panel__header">
+      <h2>Материалы</h2>
+      <button class="chip chip--light" data-toggle="material">Добавить</button>
+    </div>
+    {% if library_items %}
+      <form method="post" class="form form--inline">
+        <input type="hidden" name="action" value="attach_library_material" />
+        <label class="form__field">
+          <span>Добавить из библиотеки</span>
+          <select name="library_material_id" required>
+            {% for item in library_items %}
+              <option value="{{ item.id }}">
+                {{ item.title }}{% if item.subject_setting %} · {{ item.subject_setting.name }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="form__actions">
+          <button type="submit" class="btn btn--ghost">Прикрепить</button>
+        </div>
+      </form>
+    {% endif %}
+    <form method="post" class="form hidden" data-form="material">
+      <input type="hidden" name="action" value="add_material" />
+      <label class="form__field">
+        <span>Название</span>
+        <input type="text" name="title" placeholder="Название файла или урока" required />
+      </label>
+      <label class="form__field">
+        <span>Ссылка</span>
+        <input type="url" name="url" placeholder="https://" />
+      </label>
+      <label class="form__field">
+        <span>Комментарий</span>
+        <textarea name="notes" rows="3" placeholder="Что нужно изучить"></textarea>
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Сохранить</button>
+      </div>
+    </form>
+    {% if materials %}
+      <ul class="stack">
+        {% for material in materials %}
+          <li class="stack__item">
+            <div class="stack__title">{{ material.title }}</div>
+            <p class="stack__meta">Добавлено {{ material.created_at.strftime('%d.%m.%Y') }}</p>
+            {% if material.url %}
+              <p><a class="link" href="{{ material.url }}" target="_blank">Открыть материал</a></p>
+            {% endif %}
+            {% if material.notes %}
+              <p class="stack__text">{{ material.notes }}</p>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Материалы ещё не добавлены.</p>
+    {% endif %}
+    {% if library_items %}
+      <div class="library-suggestions">
+        <h3>Рекомендации из библиотеки</h3>
+        <ul>
+          {% for item in library_items %}
+            <li>
+              <strong>{{ item.title }}</strong>
+              {% if item.subject_setting %}
+                <span class="chip chip--mini" style="--chip-accent: {{ item.subject_setting.color }}">
+                  {{ item.subject_setting.name }}
+                </span>
+              {% endif %}
+              {% if item.description %}<p>{{ item.description }}</p>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </article>
+</section>
+
+<section class="grid grid--two">
+  <article class="panel">
+    <div class="panel__header">
+      <h2>Чат</h2>
+      <button class="chip chip--light" data-toggle="message">Написать</button>
+    </div>
+    <form method="post" class="form hidden" data-form="message">
+      <input type="hidden" name="action" value="send_message" />
+      <label class="form__field form__field--wide">
+        <span>Сообщение ученику</span>
+        <textarea name="content" rows="3" placeholder="Введите текст сообщения" required></textarea>
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Отправить</button>
+      </div>
+    </form>
+    {% if messages %}
+      <div class="chat-thread">
+        {% for message in messages %}
+          <div class="chat-thread__message chat-thread__message--{{ 'self' if message.sender == 'teacher' else 'student' }}">
+            <div class="chat-thread__author">
+              {{ 'Вы' if message.sender == 'teacher' else student.full_name }}
+              <span>{{ message.created_at.strftime('%d.%m %H:%M') }}</span>
+            </div>
+            <div class="chat-thread__bubble">{{ message.content }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">Переписка ещё не началась.</p>
+    {% endif %}
+  </article>
+
+  <article class="panel">
+    <h2>История занятий</h2>
+    {% if sessions %}
+      <ul class="stack">
+        {% for lesson in sessions %}
+          <li class="stack__item">
+            <div class="stack__title">
+              {{ lesson.date.strftime('%d.%m.%Y') }} · {{ lesson.start_time.strftime('%H:%M') }} —
+              {{ lesson.topic }}
+            </div>
+            <p class="stack__meta">
+              Длительность: {{ lesson.duration_minutes }} мин · Статус: {{ lesson.status }}
+            </p>
+            <p class="stack__meta">
+              Оплата: {{ payment_status_choices.get(lesson.payment_status, '—') }}
+              {% if lesson.fee_amount %}
+                · {{ '{:,.2f}'.format(lesson.fee_amount).replace(',', ' ') }} ₽
+              {% endif %}
+              {% if lesson.payment %}
+                · поступление {{ lesson.payment.paid_on.strftime('%d.%m.%Y') }}
+              {% endif %}
+            </p>
+            {% if lesson.homework %}
+              <p class="stack__text">ДЗ: {{ lesson.homework }}</p>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Занятия ещё не запланированы.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Платежи</h2>
+  {% if payments %}
+    <table class="table table--compact">
+      <thead>
+        <tr>
+          <th>Дата</th>
+          <th>Сумма</th>
+          <th>Метод</th>
+          <th>Занятия</th>
+          <th>Комментарий</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in payments %}
+          <tr>
+            <td>{{ payment.paid_on.strftime('%d.%m.%Y') }}</td>
+            <td>{{ '{:,.2f}'.format(payment.amount).replace(',', ' ') }} ₽</td>
+            <td>{{ payment.method }}</td>
+            <td>
+              {% if payment.sessions %}
+                <ul class="payment-session-list">
+                  {% for lesson in payment.sessions %}
+                    <li>{{ lesson.date.strftime('%d.%m') }} · {{ lesson.topic }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>{{ payment.notes or '—' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">Платежей пока нет.</p>
+  {% endif %}
+</section>
+
+<script>
+  document.querySelectorAll('[data-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const target = document.querySelector(`[data-form="${button.dataset.toggle}"]`);
+      target?.classList.toggle('hidden');
+    });
+  });
+</script>
+{% endblock %}
