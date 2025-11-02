@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Предметные настройки — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Новый предмет</h2>
+    <p class="muted">
+      Создайте карточку предмета, чтобы хранить цвет, рекомендованную длительность урока и краткое описание.
+    </p>
+  </div>
+  <form method="post" class="form form--grid">
+    <input type="hidden" name="action" value="create" />
+    <label class="form__field">
+      <span>Название</span>
+      <input type="text" name="name" placeholder="Например, Математика" required />
+    </label>
+    <label class="form__field">
+      <span>Цвет</span>
+      <input type="color" name="color" value="#6366f1" />
+    </label>
+    <label class="form__field">
+      <span>Длительность урока (мин)</span>
+      <input type="number" name="default_duration" min="15" step="5" value="60" />
+    </label>
+    <label class="form__field form__field--wide">
+      <span>Описание</span>
+      <textarea name="description" rows="3" placeholder="Отличительные особенности, цели"></textarea>
+    </label>
+    <div class="form__actions">
+      <button type="submit" class="btn btn--primary">Сохранить предмет</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Мои предметы</h2>
+    <span class="chip">{{ subjects|length }} шт.</span>
+  </div>
+  {% if subjects %}
+    <div class="subject-grid subject-grid--manage">
+      {% for subject in subjects %}
+        <article class="subject-card subject-card--manage" style="--subject-color: {{ subject.color }}">
+          <header>
+            <h3>{{ subject.name }}</h3>
+            <span class="subject-card__badge">{{ subject.default_duration }} мин.</span>
+          </header>
+          {% if subject.description %}
+            <p class="subject-card__description">{{ subject.description }}</p>
+          {% endif %}
+          <dl class="subject-card__stats">
+            <div>
+              <dt>Ученики</dt>
+              <dd>{{ student_counts.get(subject.name, 0) }}</dd>
+            </div>
+            <div>
+              <dt>Создан</dt>
+              <dd>{{ subject.created_at.strftime('%d.%m.%Y') }}</dd>
+            </div>
+          </dl>
+          <form method="post" class="form form--stack">
+            <input type="hidden" name="action" value="update" />
+            <input type="hidden" name="subject_id" value="{{ subject.id }}" />
+            <label class="form__field">
+              <span>Цвет</span>
+              <input type="color" name="color" value="{{ subject.color }}" />
+            </label>
+            <label class="form__field">
+              <span>Длительность</span>
+              <input type="number" name="default_duration" min="15" step="5" value="{{ subject.default_duration }}" />
+            </label>
+            <label class="form__field form__field--wide">
+              <span>Описание</span>
+              <textarea name="description" rows="2">{{ subject.description or '' }}</textarea>
+            </label>
+            <div class="form__actions">
+              <button type="submit" class="btn btn--primary">Обновить</button>
+            </div>
+          </form>
+          <form method="post" class="inline-form">
+            <input type="hidden" name="action" value="delete" />
+            <input type="hidden" name="subject_id" value="{{ subject.id }}" />
+            <button type="submit" class="btn btn--ghost">Удалить</button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Добавьте предмет, чтобы связать с учениками и материалами.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Библиотека материалов — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Добавить материал</h2>
+    <p class="muted">
+      Сохраняйте полезные ссылки, презентации и файлы. Их можно быстро прикреплять к ученикам из карточки.
+    </p>
+  </div>
+  <form method="post" class="form form--grid">
+    <input type="hidden" name="action" value="create" />
+    <label class="form__field">
+      <span>Название</span>
+      <input type="text" name="title" placeholder="Например, Тригонометрия: тренажёр" required />
+    </label>
+    <label class="form__field">
+      <span>Ссылка</span>
+      <input type="url" name="url" placeholder="https://" />
+    </label>
+    <label class="form__field">
+      <span>Предмет</span>
+      <select name="subject_id">
+        <option value="">Без привязки</option>
+        {% for subject in subjects %}
+          <option value="{{ subject.id }}">{{ subject.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="form__field">
+      <span>Теги</span>
+      <input type="text" name="tags" placeholder="Например, алгебра, подготовка" />
+    </label>
+    <label class="form__field form__field--wide">
+      <span>Описание</span>
+      <textarea name="description" rows="3" placeholder="Кратко опишите материал"></textarea>
+    </label>
+    <div class="form__actions">
+      <button type="submit" class="btn btn--primary">Добавить</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Материалы библиотеки</h2>
+    <form method="get" class="filter-bar">
+      <label>
+        <span class="sr-only">Фильтр по предмету</span>
+        <select name="subject" onchange="this.form.submit()">
+          <option value="" {% if not subject_filter %}selected{% endif %}>Все</option>
+          {% for subject in subjects %}
+            <option value="{{ subject.name }}" {% if subject_filter == subject.name %}selected{% endif %}>
+              {{ subject.name }}
+            </option>
+          {% endfor %}
+          <option value="unassigned" {% if subject_filter == 'unassigned' %}selected{% endif %}>Без предмета</option>
+        </select>
+      </label>
+    </form>
+  </div>
+  {% if library_items %}
+    <div class="library-grid library-grid--manage">
+      {% for item in library_items %}
+        <article class="material-card material-card--library-manage">
+          <header class="material-card__header">
+            <h3>{{ item.title }}</h3>
+            {% if item.subject_setting %}
+              <span class="chip chip--accent" style="--chip-accent: {{ item.subject_setting.color }}">{{ item.subject_setting.name }}</span>
+            {% else %}
+              <span class="chip chip--light">Без предмета</span>
+            {% endif %}
+          </header>
+          {% if item.description %}
+            <p class="material-card__text">{{ item.description }}</p>
+          {% endif %}
+          <form method="post" class="form form--stack">
+            <input type="hidden" name="action" value="update" />
+            <input type="hidden" name="item_id" value="{{ item.id }}" />
+            <label class="form__field form__field--wide">
+              <span>Название</span>
+              <input type="text" name="title" value="{{ item.title }}" required />
+            </label>
+            <label class="form__field">
+              <span>Ссылка</span>
+              <input type="url" name="url" value="{{ item.url or '' }}" />
+            </label>
+            <label class="form__field">
+              <span>Предмет</span>
+              <select name="subject_id">
+                <option value="">Без привязки</option>
+                {% for subject in subjects %}
+                  <option value="{{ subject.id }}" {% if item.subject_id == subject.id %}selected{% endif %}>
+                    {{ subject.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="form__field">
+              <span>Теги</span>
+              <input type="text" name="tags" value="{{ item.tags or '' }}" />
+            </label>
+            <label class="form__field form__field--wide">
+              <span>Описание</span>
+              <textarea name="description" rows="2">{{ item.description or '' }}</textarea>
+            </label>
+            <div class="form__actions">
+              <button type="submit" class="btn btn--primary">Обновить</button>
+            </div>
+          </form>
+          <div class="material-card__footer">
+            {% if item.url %}
+              <a class="btn btn--ghost" href="{{ item.url }}" target="_blank" rel="noopener">Открыть</a>
+            {% endif %}
+            <form method="post" class="inline-form">
+              <input type="hidden" name="action" value="delete" />
+              <input type="hidden" name="item_id" value="{{ item.id }}" />
+              <button type="submit" class="btn btn--ghost">Удалить</button>
+            </form>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Пока нет материалов в библиотеке. Добавьте первый ресурс выше.</p>
+  {% endif %}
+</section>
+{% endblock %}

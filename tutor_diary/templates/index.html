@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+{% block title %}Главная — ОбразОн{% endblock %}
+{% block content %}
+<section class="dashboard-intro">
+  <div class="dashboard-intro__content">
+    <h1>Добро пожаловать в «ОбразОн»!</h1>
+    <p>
+      Управляйте занятиями, домашними заданиями и материалами в одном месте. Внизу — ключевые
+      показатели по вашему учебному потоку.
+    </p>
+    <div class="dashboard-intro__cta">
+      <a class="btn btn--primary" href="{{ url_for('diary.manage_students') }}">Добавить ученика</a>
+      <a class="btn btn--ghost" href="{{ url_for('diary.manage_sessions') }}">Запланировать урок</a>
+    </div>
+    {% if student_limit is not none %}
+      <p class="muted">
+        Лимит учеников: {{ student_count }} из {{ student_limit }}
+        {% if limit_remaining > 0 %}
+          · свободно {{ limit_remaining }}
+        {% else %}
+          · лимит заполнен — создайте ученика позже или увеличьте лимит у администратора.
+        {% endif %}
+      </p>
+    {% endif %}
+  </div>
+  <div class="dashboard-intro__art" aria-hidden="true">
+    <div class="orbit">
+      <span class="orbit__planet"></span>
+      <span class="orbit__satellite"></span>
+    </div>
+  </div>
+</section>
+
+<section class="grid grid--stats">
+  <article class="card card--gradient">
+    <h2>Ученики</h2>
+    <p class="card__value">{{ student_count }}</p>
+    <p class="card__meta">Активные ученики в системе</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Занятия</h2>
+    <p class="card__value">{{ session_count }}</p>
+    <p class="card__meta">Количество уроков в базе</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Оплачено</h2>
+    <p class="card__value">{{ '{:,.2f}'.format(payment_total).replace(',', ' ') }} ₽</p>
+    <p class="card__meta">Сумма подтверждённых оплат</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Дедлайны</h2>
+    <p class="card__value">{{ assignments_open }}</p>
+    <p class="card__meta">Незакрытые домашние задания</p>
+  </article>
+</section>
+
+<section class="panel panel--calendar panel--calendar-wide">
+  <div class="panel__header">
+    <h2>Календарь преподавателя</h2>
+    <div class="calendar-nav">
+      <a class="chip" href="{{ url_for('diary.index', month=prev_month, year=prev_year) }}">‹</a>
+      <span>{{ month_label }} {{ target_year }}</span>
+      <a class="chip" href="{{ url_for('diary.index', month=next_month, year=next_year) }}">›</a>
+    </div>
+  </div>
+  <div class="calendar calendar--xl">
+    <div class="calendar__header">Пн</div>
+    <div class="calendar__header">Вт</div>
+    <div class="calendar__header">Ср</div>
+    <div class="calendar__header">Чт</div>
+    <div class="calendar__header">Пт</div>
+    <div class="calendar__header">Сб</div>
+    <div class="calendar__header">Вс</div>
+    {% for week in calendar_month %}
+      {% for day in week %}
+        {% if day %}
+          {% set lessons = sessions_by_day.get(day, []) %}
+          <div class="calendar__cell {% if lessons %}calendar__cell--busy{% endif %}">
+            <span class="calendar__date">{{ day.day }}</span>
+            {% if lessons %}
+              <ul class="calendar__list">
+                {% for lesson in lessons %}
+                  <li>
+                    {{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.student.full_name }}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="calendar__cell calendar__cell--empty"></div>
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel panel--focus">
+  <div class="panel__header">
+    <h2>Фокус на неделю</h2>
+    <span class="chip chip--light">ИИ-помощник</span>
+  </div>
+
+  <div class="assistant assistant--{{ focus_summary.tone }}">
+    <div class="assistant__avatar" aria-hidden="true">🤖</div>
+    <div class="assistant__content">
+      <h3>{{ focus_summary.title }}</h3>
+      <p>{{ focus_summary.message }}</p>
+    </div>
+  </div>
+
+  {% if focus_recommendations %}
+    <div class="assistant-grid">
+      {% for item in focus_recommendations %}
+        <article class="assistant-card assistant-card--{{ item.tone }}">
+          <div class="assistant-card__icon" aria-hidden="true">{{ item.icon }}</div>
+          <div class="assistant-card__body">
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.description }}</p>
+            {% if item.link %}
+              <a class="link" href="{{ item.link.url }}">{{ item.link.label }}</a>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="assistant-columns">
+    <div class="assistant-column">
+      <h3>Сегодня</h3>
+      {% if sessions_today %}
+        <ul class="stack stack--mini">
+          {% for lesson in sessions_today %}
+            <li class="stack__item">
+              <div class="stack__title">{{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.student.full_name }}</div>
+              <p class="stack__meta">{{ lesson.topic }}</p>
+              <a class="link" href="{{ url_for('diary.student_detail', student_id=lesson.student_id) }}">Карточка ученика</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Сегодня занятий нет — можно подготовить материалы.</p>
+      {% endif %}
+    </div>
+    <div class="assistant-column">
+      <h3>Дедлайны на 7 дней</h3>
+      {% if assignments_due_soon %}
+        <ul class="stack stack--mini">
+          {% for assignment in assignments_due_soon %}
+            <li class="stack__item {% if assignment.status == 'completed' %}stack__item--done{% endif %}">
+              <div class="stack__title">{{ assignment.title }}</div>
+              <p class="stack__meta">
+                До {{ assignment.due_date.strftime('%d.%m') }} · {{ assignment.student.full_name }}
+              </p>
+              {% if assignment.description %}<p class="stack__text">{{ assignment.description }}</p>{% endif %}
+              <a class="link" href="{{ url_for('diary.student_detail', student_id=assignment.student_id) }}">Перейти к ученику</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Все задания под контролем — новых дедлайнов на неделе нет.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="panel panel--schedule">
+  <div class="panel__header">
+    <h2>Ближайшие занятия</h2>
+    <a class="chip" href="{{ url_for('diary.manage_sessions') }}">Все занятия</a>
+  </div>
+  {% if upcoming_sessions %}
+    <ul class="timeline">
+      {% for session in upcoming_sessions %}
+        <li class="timeline__item">
+          <div class="timeline__date">
+            <span>{{ session.date.strftime('%d.%m') }}</span>
+            <small>{{ session.start_time.strftime('%H:%M') }}</small>
+          </div>
+          <div class="timeline__content">
+            <h3>{{ session.student.full_name }}</h3>
+            <p>{{ session.topic }}</p>
+            {% if session.homework %}
+              <p class="timeline__homework">ДЗ: {{ session.homework }}</p>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Нет запланированных занятий.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Контроль оплат</h2>
+    <a class="chip" href="{{ url_for('diary.manage_payments') }}">Добавить оплату</a>
+  </div>
+  {% if students_needing_attention %}
+    <ul class="stack">
+      {% for entry in students_needing_attention %}
+        <li class="stack__item">
+          <div class="stack__title">{{ entry.student.full_name }}</div>
+          {% if entry.last_payment %}
+            <p class="stack__meta">
+              Последняя оплата: {{ entry.last_payment.paid_on.strftime('%d.%m.%Y') }}
+              {% if entry.days_since is not none %}· {{ entry.days_since }} дн. назад{% endif %}
+            </p>
+          {% else %}
+            <p class="stack__meta">Оплаты ещё не зарегистрированы.</p>
+          {% endif %}
+          {% if entry.outstanding_count %}
+            <p class="stack__meta">
+              Неоплачено {{ entry.outstanding_count }} занят{{ 'ий' if entry.outstanding_count > 4 else 'ия' if entry.outstanding_count > 1 else 'ие' }}
+              {% if entry.outstanding_total %}
+                · {{ '{:,.2f}'.format(entry.outstanding_total).replace(',', ' ') }} ₽
+              {% endif %}
+            </p>
+          {% endif %}
+          <a class="link" href="{{ url_for('diary.student_detail', student_id=entry.student.id) }}">Карточка ученика</a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Все ученики оплатили занятия за последние 30 дней — отлично!</p>
+  {% endif %}
+</section>
+
+{% if subject_overview or unmanaged_subjects %}
+  <section class="panel panel--subjects">
+    <div class="panel__header">
+      <h2>Предметная панель</h2>
+      <a class="chip" href="{{ url_for('diary.manage_subjects') }}">Настройки предметов</a>
+    </div>
+    {% if subject_overview %}
+      <div class="subject-grid">
+        {% for entry in subject_overview %}
+          <article class="subject-card" style="--subject-color: {{ entry.setting.color }}">
+            <header>
+              <h3>{{ entry.setting.name }}</h3>
+              <span class="subject-card__badge">{{ entry.setting.default_duration }} мин.</span>
+            </header>
+            {% if entry.setting.description %}
+              <p class="subject-card__description">{{ entry.setting.description }}</p>
+            {% endif %}
+            <dl class="subject-card__stats">
+              <div>
+                <dt>Ученики</dt>
+                <dd>{{ entry.students }}</dd>
+              </div>
+              <div>
+                <dt>Занятий в базе</dt>
+                <dd>{{ entry.sessions }}</dd>
+              </div>
+            </dl>
+            <footer>
+              <a class="link" href="{{ url_for('diary.manage_sessions') }}?subject={{ entry.setting.name }}">Планировать урок</a>
+            </footer>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">Пока нет настроенных предметов — самое время добавить первый.</p>
+    {% endif %}
+    {% if unmanaged_subjects %}
+      <div class="panel__footer panel__footer--notice">
+        <strong>Нуждаются в настройке:</strong>
+        <ul class="subject-missing">
+          {% for item in unmanaged_subjects %}
+            {% set count = item.students %}
+            <li>
+              {{ item.name }} —
+              {{ count }}
+              {% if count % 10 == 1 and count % 100 != 11 %}
+                ученик
+              {% elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20) %}
+                ученика
+              {% else %}
+                учеников
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </section>
+{% endif %}
+
+{% if library_spotlight %}
+  <section class="panel panel--library">
+    <div class="panel__header">
+      <h2>Материалы недели</h2>
+      <a class="chip" href="{{ url_for('diary.manage_library') }}">Вся библиотека</a>
+    </div>
+    <div class="library-grid">
+      {% for item in library_spotlight %}
+        <article class="material-card material-card--library">
+          <h3>{{ item.title }}</h3>
+          {% if item.description %}<p class="material-card__excerpt">{{ item.description }}</p>{% endif %}
+          <div class="material-card__meta">
+            {% if item.subject_setting %}
+              <span class="chip chip--accent" style="--chip-accent: {{ item.subject_setting.color }}">{{ item.subject_setting.name }}</span>
+            {% else %}
+              <span class="chip chip--light">Общий материал</span>
+            {% endif %}
+            {% if item.tags %}
+              <span class="chip chip--ghost">{{ item.tags }}</span>
+            {% endif %}
+          </div>
+          {% if item.url %}
+            <a class="btn btn--ghost" href="{{ item.url }}" target="_blank" rel="noopener">Открыть</a>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

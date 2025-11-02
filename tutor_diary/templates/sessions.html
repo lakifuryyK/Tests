@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Занятия — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Запланировать занятие</h2>
+    <p class="muted">
+      Создайте урок, чтобы он появился в календарях ученика и в вашем списке ближайших занятий.
+    </p>
+  </div>
+  {% if teacher_options %}
+    <form method="get" class="filter-bar">
+      <label>
+        <span class="sr-only">Преподаватель</span>
+        <select name="teacher_id" onchange="this.form.submit()">
+          <option value="">Все преподаватели</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+              {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if subject_focus %}
+        <input type="hidden" name="subject" value="{{ subject_focus }}" />
+      {% endif %}
+    </form>
+  {% endif %}
+  {% if students %}
+    <form method="post" class="form form--grid">
+      <label class="form__field">
+        <span>Ученик</span>
+        <select name="student_id" required>
+          <option value="" disabled {% if not subject_focus %}selected{% endif %}>Выберите ученика</option>
+          {% for student in students %}
+            {% set is_focus = subject_focus and student.subject and subject_focus == student.subject %}
+            <option
+              value="{{ student.id }}"
+              data-duration="{{ subject_defaults.get(student.subject, 60) }}"
+              data-subject="{{ student.subject }}"
+              {% if is_focus %}selected{% endif %}
+            >
+              {{ student.full_name }}{% if student.subject %} — {{ student.subject }}{% endif %}
+              {% if student.teacher %} ({{ student.teacher.username }}){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Дата</span>
+        <input type="date" name="date" required />
+      </label>
+      <label class="form__field">
+        <span>Время</span>
+        <input type="time" name="start_time" required />
+      </label>
+      <label class="form__field">
+        <span>Длительность (мин)</span>
+        <input
+          type="number"
+          name="duration_minutes"
+          min="15"
+          step="15"
+          value="60"
+          required
+          data-field="duration"
+        />
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Тема занятия</span>
+        <input
+          type="text"
+          name="topic"
+          placeholder="Например, Подготовка к ЕГЭ"
+          required
+          data-field="topic"
+        />
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Домашнее задание</span>
+        <textarea name="homework" rows="3" placeholder="Опишите задание (необязательно)"></textarea>
+      </label>
+      <label class="form__field">
+        <span>Стоимость занятия (₽)</span>
+        <input type="number" step="0.01" min="0" name="fee_amount" placeholder="Например, 1500" />
+      </label>
+      <label class="form__field">
+        <span>Статус оплаты</span>
+        <select name="payment_status">
+          {% for key, label in payment_status_choices.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Статус</span>
+        <select name="status">
+          <option value="scheduled">Запланировано</option>
+          <option value="completed">Проведено</option>
+          <option value="cancelled">Отменено</option>
+        </select>
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Добавить занятие</button>
+      </div>
+    </form>
+  {% else %}
+    <p class="muted">Чтобы запланировать занятие, добавьте хотя бы одного ученика.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>История занятий</h2>
+    <span class="chip">{{ sessions|length }} записей</span>
+  </div>
+  {% if teacher_options %}
+    <form method="get" class="filter-bar">
+      <label>
+        <span class="sr-only">Фильтр по преподавателю</span>
+        <select name="teacher_id" onchange="this.form.submit()">
+          <option value="">Все преподаватели</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+              {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if subject_focus %}
+        <input type="hidden" name="subject" value="{{ subject_focus }}" />
+      {% endif %}
+    </form>
+  {% endif %}
+  {% if sessions %}
+    <div class="table-wrapper">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            <th>Дата и время</th>
+            <th>Ученик</th>
+            <th>Тема</th>
+            <th>Домашнее задание</th>
+            <th>Длительность</th>
+            <th>Оплата</th>
+            <th>Статус занятия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for session in sessions %}
+            <tr>
+              <td>{{ session.date.strftime('%d.%m.%Y') }} {{ session.start_time.strftime('%H:%M') }}</td>
+              <td>{{ session.student.full_name }}</td>
+              <td>{{ session.topic }}</td>
+              <td>{{ session.homework or '—' }}</td>
+              <td>{{ session.duration_minutes }} мин</td>
+              <td>
+                <form method="post" class="session-payment-form">
+                  <input type="hidden" name="action" value="update_finance" />
+                  <input type="hidden" name="session_id" value="{{ session.id }}" />
+                  <div class="session-payment-form__row">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      name="fee_amount"
+                      value="{{ session.fee_amount if session.fee_amount is not none else '' }}"
+                      placeholder="0.00"
+                    />
+                    <select name="payment_status">
+                      {% for key, label in payment_status_choices.items() %}
+                        <option value="{{ key }}" {% if session.payment_status == key %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn--ghost btn--mini">Сохранить</button>
+                  </div>
+                  {% if session.payment %}
+                    <p class="session-payment-form__meta">
+                      Оплата {{ session.payment.paid_on.strftime('%d.%m.%Y') }} ·
+                      {{ '{:,.2f}'.format(session.payment.amount).replace(',', ' ') }} ₽
+                    </p>
+                  {% endif %}
+                </form>
+              </td>
+              <td><span class="status status--{{ session.status }}">{{ session.status|title }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Здесь появятся занятия после создания.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const studentSelect = document.querySelector('select[name="student_id"]');
+      const durationInput = document.querySelector('input[data-field="duration"]');
+      const topicInput = document.querySelector('input[data-field="topic"]');
+      if (!studentSelect) return;
+
+      const markTouched = (element) => {
+        if (!element) return;
+        element.addEventListener('input', () => {
+          element.dataset.touched = 'true';
+        });
+      };
+
+      markTouched(durationInput);
+      markTouched(topicInput);
+
+      studentSelect.addEventListener('change', () => {
+        const option = studentSelect.selectedOptions[0];
+        if (!option) return;
+        const duration = option.getAttribute('data-duration');
+        if (duration && durationInput && !durationInput.dataset.touched) {
+          durationInput.value = duration;
+        }
+        const subject = option.getAttribute('data-subject');
+        if (subject && topicInput && !topicInput.dataset.touched) {
+          topicInput.placeholder = `Например, ${subject}: новая тема`;
+        }
+      });
+
+      if (studentSelect.value) {
+        studentSelect.dispatchEvent(new Event('change'));
+      }
+    });
+  </script>
+{% endblock %}

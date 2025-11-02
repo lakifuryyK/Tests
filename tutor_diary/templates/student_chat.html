@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Чат с преподавателем — {{ student.full_name }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Чат с преподавателем</h1>
+    <p class="muted">Согласовывайте детали занятий и задавайте вопросы прямо здесь.</p>
+  </div>
+</section>
+<section class="panel">
+  <div class="chat-thread chat-thread--large">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="chat-thread__message chat-thread__message--{{ 'self' if message.sender == 'student' else 'teacher' }}">
+          <div class="chat-thread__author">
+            {{ 'Вы' if message.sender == 'student' else 'Преподаватель' }}
+            <span>{{ message.created_at.strftime('%d.%m %H:%M') }}</span>
+          </div>
+          <div class="chat-thread__bubble">{{ message.content }}</div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">Здесь появится история переписки с преподавателем.</p>
+    {% endif %}
+  </div>
+  <form method="post" class="form form--chat">
+    <textarea name="content" rows="3" placeholder="Напишите сообщение..." required></textarea>
+    <button type="submit" class="btn btn--primary">Отправить</button>
+  </form>
+</section>
+{% endblock %}

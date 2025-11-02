@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru" class="theme">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}ОбразОн{% endblock %}</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@600&display=swap"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  </head>
+  <body>
+    <header class="navbar">
+      <div class="navbar__brand">
+        <img
+          src="{{ url_for('static', filename='img/obrazon-logo.svg') }}"
+          alt="Логотип ОбразОн"
+          class="navbar__mark"
+        />
+        <span class="navbar__title">ОбразОн</span>
+      </div>
+      <nav class="navbar__menu">
+        {% if session.get('role') == 'admin' %}
+          <a href="{{ url_for('diary.admin_dashboard') }}" class="navbar__link">Админ-панель</a>
+          <a href="{{ url_for('diary.admin_manage_teachers') }}" class="navbar__link">Преподаватели</a>
+          <a href="{{ url_for('diary.admin_manage_students') }}" class="navbar__link">Ученики</a>
+          <a href="{{ url_for('diary.manage_subjects') }}" class="navbar__link">Предметы</a>
+          <a href="{{ url_for('diary.manage_library') }}" class="navbar__link">Библиотека</a>
+          <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
+        {% elif session.get('role') == 'teacher' %}
+          <a href="{{ url_for('diary.index') }}" class="navbar__link">Панель</a>
+          <a href="{{ url_for('diary.manage_students') }}" class="navbar__link">Ученики</a>
+          <a href="{{ url_for('diary.manage_subjects') }}" class="navbar__link">Предметы</a>
+          <a href="{{ url_for('diary.manage_sessions') }}" class="navbar__link">Занятия</a>
+          <a href="{{ url_for('diary.manage_payments') }}" class="navbar__link">Финансы</a>
+          <a href="{{ url_for('diary.manage_library') }}" class="navbar__link">Библиотека</a>
+          <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
+        {% elif session.get('role') == 'student' %}
+          <a href="{{ url_for('diary.student_board') }}" class="navbar__link">Панель</a>
+          <a href="{{ url_for('diary.student_homework') }}" class="navbar__link">ДЗ</a>
+          <a href="{{ url_for('diary.student_materials') }}" class="navbar__link">Материалы</a>
+          <a href="{{ url_for('diary.student_chat') }}" class="navbar__link">Чат</a>
+          <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
+        {% else %}
+          <a href="{{ url_for('diary.login') }}" class="navbar__link">Вход</a>
+        {% endif %}
+      </nav>
+    </header>
+    <main class="container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="alerts">
+            {% for category, message in messages %}
+              <div class="alert alert--{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+    {% set moscow_time = now_moscow() %}
+    <footer class="footer">
+      <div class="footer__meta">
+        <span class="footer__time">
+          Московское время: {{ moscow_time.strftime('%d.%m.%Y %H:%M') }}
+        </span>
+        <span class="footer__copy">
+          &copy; {{ moscow_time.year }} ОбразОн — дневник для репетитора и ученика
+        </span>
+      </div>
+      <nav class="footer__links">
+        <a href="#" class="footer__link">О нас</a>
+        <a href="#" class="footer__link">Правила площадки</a>
+        <a href="#" class="footer__link">Техническая поддержка</a>
+        <a href="#" class="footer__link">Отдел продаж</a>
+      </nav>
+    </footer>
+    {% block scripts %}{% endblock %}
+    <div class="cookie-banner" data-cookie-banner>
+      <div class="cookie-banner__content">
+        <h3>Мы используем cookies</h3>
+        <p>
+          Файлы cookie помогают персонализировать обучение и хранить настройки. Продолжая
+          использовать сервис, вы соглашаетесь с их применением.
+        </p>
+      </div>
+      <div class="cookie-banner__actions">
+        <button type="button" class="btn btn--primary" data-cookie-accept>Согласиться</button>
+        <button type="button" class="btn btn--ghost" data-cookie-decline>Отклонить</button>
+      </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/cookies.js') }}" defer></script>
+  </body>
+</html>
