@@ -18,6 +18,75 @@ except ImportError:  # pragma: no cover - keep compatibility with exotic Python 
 db = SQLAlchemy()
 migrate = Migrate() if Migrate is not None else None
 
+DEFAULT_SUBJECTS: tuple[dict[str, str | int | None], ...] = (
+    {
+        "name": "Математика",
+        "color": "#6366f1",
+        "default_duration": 60,
+        "description": "Алгебра, геометрия и подготовка к контрольным работам.",
+    },
+    {
+        "name": "Русский язык",
+        "color": "#f97316",
+        "default_duration": 45,
+        "description": "Орфография, пунктуация и развитие речи.",
+    },
+    {
+        "name": "Литература",
+        "color": "#ec4899",
+        "default_duration": 50,
+        "description": "Разбор произведений, подготовка к сочинениям и анализ текстов.",
+    },
+    {
+        "name": "Английский язык",
+        "color": "#22d3ee",
+        "default_duration": 50,
+        "description": "Грамматика, разговорная практика и подготовка к экзаменам.",
+    },
+    {
+        "name": "Физика",
+        "color": "#8b5cf6",
+        "default_duration": 60,
+        "description": "Теория, решение задач и подготовка к лабораторным работам.",
+    },
+    {
+        "name": "Химия",
+        "color": "#14b8a6",
+        "default_duration": 55,
+        "description": "Основы химии, реакции и подготовка к практическим занятиям.",
+    },
+    {
+        "name": "Биология",
+        "color": "#22c55e",
+        "default_duration": 50,
+        "description": "Подготовка к олимпиадам, контрольным и ЕГЭ по биологии.",
+    },
+    {
+        "name": "История",
+        "color": "#f59e0b",
+        "default_duration": 45,
+        "description": "Хронология, работа с источниками и подготовка к итоговым работам.",
+    },
+    {
+        "name": "Обществознание",
+        "color": "#fb7185",
+        "default_duration": 45,
+        "description": "Экономика, право и обществоведческие темы для экзаменов.",
+    },
+    {
+        "name": "География",
+        "color": "#0ea5e9",
+        "default_duration": 45,
+        "description": "Картография, природные зоны и подготовка к контрольным.",
+    },
+    {
+        "name": "Информатика",
+        "color": "#4ade80",
+        "default_duration": 60,
+        "description": "Программирование, алгоритмы и цифровая грамотность.",
+    },
+)
+
 
 def _resolve_moscow_timezone():
     """Return a tzinfo for Europe/Moscow with a graceful fallback."""
@@ -78,6 +147,28 @@ def create_app(test_config: dict | None = None) -> Flask:
             {"admin_id": admin.id},
         )
         db.session.commit()
+
+    def ensure_default_subjects() -> None:
+        """Seed the catalog with the core school subjects if missing."""
+        from .models import SubjectSetting
+
+        existing_subjects = {
+            subject.name for subject in SubjectSetting.query.with_entities(SubjectSetting.name).all()
+        }
+        created = False
+        for subject in DEFAULT_SUBJECTS:
+            if subject["name"] not in existing_subjects:
+                db.session.add(
+                    SubjectSetting(
+                        name=subject["name"],
+                        color=subject["color"],
+                        default_duration=subject["default_duration"],
+                        description=subject["description"],
+                    )
+                )
+                created = True
+        if created:
+            db.session.commit()
 
     def ensure_schema_upgrades() -> None:
         """Apply lightweight schema adjustments for legacy databases."""
@@ -142,6 +233,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         db.create_all()
         ensure_schema_upgrades()
         ensure_admin_account()
+        ensure_default_subjects()
 
     with app.app_context():
         bootstrap_database()

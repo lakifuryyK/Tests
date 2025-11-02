@@ -681,15 +681,8 @@ def manage_students():
         full_name = request.form.get("full_name", "").strip()
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
-        subject_choice = request.form.get("subject_choice")
-        subject_custom = request.form.get("subject_custom", "").strip() or None
-        subject = None
-        if subject_choice and subject_choice != "__custom__":
-            subject = subject_choice
-        elif subject_choice == "__custom__":
-            subject = subject_custom
-        elif subject_custom:
-            subject = subject_custom
+        subject_choice = (request.form.get("subject_choice") or "").strip()
+        subject = subject_choice if subject_choice and subject_choice != "__custom__" else None
         contact_info = request.form.get("contact_info", "").strip() or None
         notes = request.form.get("notes", "").strip() or None
 

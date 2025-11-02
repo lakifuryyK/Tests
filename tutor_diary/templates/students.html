@@ -11,6 +11,8 @@
       {% else %}
         Максимум учеников: {{ student_limit }}. Осталось мест: {{ limit_remaining }}.
         Передайте логин и пароль ученику, чтобы он получил доступ к личному кабинету.
+        Выберите предмет из готового списка — администратор заранее добавил основные
+        школьные дисциплины.
       {% endif %}
     </p>
   </div>
@@ -48,14 +50,18 @@
         {% for subject in subject_settings %}
           <option value="{{ subject.name }}">{{ subject.name }} · {{ subject.default_duration }} мин.</option>
         {% endfor %}
-        <option value="__custom__">Свой предмет</option>
+        {% if is_admin %}
+          <option value="__custom__">Свой предмет</option>
+        {% endif %}
       </select>
     </label>
-    <label class="form__field">
-      <span>Собственный предмет</span>
-      <input type="text" name="subject_custom" placeholder="Например, Олимпиадная физика" />
-      <small class="muted">Будет сохранён, если выбрать «Свой предмет».</small>
-    </label>
+    {% if is_admin %}
+      <label class="form__field">
+        <span>Собственный предмет</span>
+        <input type="text" name="subject_custom" placeholder="Например, Олимпиадная физика" />
+        <small class="muted">Будет сохранён, если выбрать «Свой предмет».</small>
+      </label>
+    {% endif %}
     <label class="form__field">
       <span>Контакты</span>
       <input type="text" name="contact_info" placeholder="Телефон или email" />
