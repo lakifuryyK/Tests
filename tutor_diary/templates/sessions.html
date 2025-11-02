@@ -80,6 +80,15 @@
         <span>Домашнее задание</span>
         <textarea name="homework" rows="3" placeholder="Опишите задание (необязательно)"></textarea>
       </label>
+      <label class="form__field form__field--wide">
+        <span>Ссылка на урок</span>
+        <input
+          type="url"
+          name="join_link"
+          placeholder="https://videoplatform.example/meeting"
+          inputmode="url"
+        />
+      </label>
       <label class="form__field">
         <span>Стоимость занятия (₽)</span>
         <input type="number" step="0.01" min="0" name="fee_amount" placeholder="Например, 1500" />
@@ -143,6 +152,7 @@
             <th>Домашнее задание</th>
             <th>Длительность</th>
             <th>Оплата</th>
+            <th>Ссылка</th>
             <th>Статус занятия</th>
           </tr>
         </thead>
@@ -178,6 +188,27 @@
                     <p class="session-payment-form__meta">
                       Оплата {{ session.payment.paid_on.strftime('%d.%m.%Y') }} ·
                       {{ '{:,.2f}'.format(session.payment.amount).replace(',', ' ') }} ₽
+                    </p>
+                  {% endif %}
+                </form>
+              </td>
+              <td>
+                <form method="post" class="session-link-form">
+                  <input type="hidden" name="action" value="update_join_link" />
+                  <input type="hidden" name="session_id" value="{{ session.id }}" />
+                  <div class="session-link-form__row">
+                    <input
+                      type="url"
+                      name="join_link"
+                      value="{{ session.join_link or '' }}"
+                      placeholder="https://..."
+                      inputmode="url"
+                    />
+                    <button type="submit" class="btn btn--ghost btn--mini">Сохранить</button>
+                  </div>
+                  {% if session.join_link %}
+                    <p class="session-link-form__meta">
+                      <a href="{{ session.join_link }}" class="link" target="_blank" rel="noopener">Открыть</a>
                     </p>
                   {% endif %}
                 </form>

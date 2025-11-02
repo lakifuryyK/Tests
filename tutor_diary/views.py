@@ -4,10 +4,13 @@ from calendar import Calendar, monthrange
 from decimal import Decimal, InvalidOperation
 from datetime import date, datetime, timedelta
 from functools import wraps
+import json
+from pathlib import Path
 
 from flask import (
     Blueprint,
     abort,
+    current_app,
     flash,
     jsonify,
     redirect,
@@ -19,10 +22,13 @@ from flask import (
 
 from sqlalchemy import or_
 
+from werkzeug.utils import secure_filename
+
 from . import db
 from .models import (
     Admin,
     Assignment,
+    AssignmentAttachment,
     AdminCommunication,
     ChatMessage,
     LibraryMaterial,
@@ -62,6 +68,77 @@ PAYMENT_STATUS_CHOICES = {
     "paid": "Оплачено",
 }
 
+AVATAR_COLORS = [
+    "#6366f1",
+    "#ec4899",
+    "#22d3ee",
+    "#f97316",
+    "#8b5cf6",
+    "#22c55e",
+]
+
+
+def initials_from_name(full_name: str | None) -> str:
+    if not full_name:
+        return "УЧ"
+    parts = [piece for piece in full_name.split() if piece]
+    if not parts:
+        return "УЧ"
+    initials = "".join(part[0].upper() for part in parts[:2])
+    return initials or "УЧ"
+
+
+def avatar_color_for_name(full_name: str | None) -> str:
+    if not full_name:
+        return AVATAR_COLORS[0]
+    score = sum(ord(char) for char in full_name)
+    return AVATAR_COLORS[score % len(AVATAR_COLORS)]
+
+
+def describe_time_until(start_dt: datetime, current_dt: datetime) -> str:
+    delta = start_dt - current_dt
+    if delta.total_seconds() <= 0:
+        if 0 <= (current_dt - start_dt).total_seconds() < 300:
+            return "Урок начинается прямо сейчас"
+        return "Урок уже в разгаре"
+    minutes = int(delta.total_seconds() // 60)
+    days = minutes // (60 * 24)
+    hours = (minutes % (60 * 24)) // 60
+    mins = minutes % 60
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days} д")
+    if hours:
+        parts.append(f"{hours} ч")
+    if mins:
+        parts.append(f"{mins} мин")
+    if not parts:
+        return "Меньше минуты до старта"
+    return "Старт через " + " ".join(parts)
+
+
+def compute_session_state(lesson: Session, current_dt: datetime) -> dict[str, object]:
+    start_dt = datetime.combine(lesson.date, lesson.start_time)
+    end_dt = start_dt + timedelta(minutes=lesson.duration_minutes or 0)
+    join_window = start_dt <= current_dt < start_dt + timedelta(minutes=5)
+    if current_dt >= end_dt:
+        label = "Прошел"
+        tone = "passed"
+    elif current_dt >= start_dt + timedelta(minutes=5):
+        label = "В процессе"
+        tone = "active"
+    else:
+        label = "Не пройден"
+        tone = "upcoming"
+    return {
+        "label": label,
+        "tone": tone,
+        "start": start_dt,
+        "end": end_dt,
+        "join_window": join_window,
+        "time_hint": describe_time_until(start_dt, current_dt),
+    }
+
 
 def login_required(*roles: str):
     def decorator(view):
@@ -99,6 +176,28 @@ def ensure_teacher_access(student: Student) -> None:
         abort(403)
 
 
+@bp.context_processor
+def inject_active_student() -> dict[str, object]:
+    if session.get("role") != STUDENT_ROLE:
+        return {}
+    student = current_student()
+    if not student:
+        return {}
+    avatar_url = None
+    if student.avatar_path:
+        avatar_url = (
+            student.avatar_path
+            if student.avatar_path.startswith("http")
+            else url_for("static", filename=student.avatar_path)
+        )
+    return {
+        "active_student": student,
+        "active_student_initials": initials_from_name(student.full_name),
+        "active_student_avatar_color": avatar_color_for_name(student.full_name),
+        "active_student_avatar_url": avatar_url,
+    }
+
+
 @bp.route("/")
 def index():
     role = session.get("role")
@@ -115,13 +214,17 @@ def index():
         flash("Сессия истекла, войдите снова.", "warning")
         return redirect(url_for("diary.login"))
 
+    tz = current_app.config.get("MOSCOW_TIMEZONE")
+    now_local = datetime.now(tz) if tz else datetime.utcnow()
+    now_naive = now_local.replace(tzinfo=None)
+
     assigned_subjects = sorted(
         teacher.subjects,
         key=lambda subject: subject.name.lower() if subject and subject.name else "",
     )
     assigned_subject_names = {subject.name for subject in assigned_subjects}
 
-    today = datetime.utcnow().date()
+    today = now_naive.date()
     student_query = Student.query.filter_by(teacher_id=teacher.id)
     students = student_query.order_by(Student.full_name.asc()).all()
     student_count = len(students)
@@ -177,8 +280,10 @@ def index():
         .all()
     )
     sessions_by_day: dict[date, list[Session]] = {}
+    session_states: dict[int, dict[str, object]] = {}
     for lesson in calendar_sessions:
         sessions_by_day.setdefault(lesson.date, []).append(lesson)
+        session_states[lesson.id] = compute_session_state(lesson, now_naive)
 
     assignments_due_soon = (
         Assignment.query.join(Student, Assignment.student_id == Student.id)
@@ -307,7 +412,15 @@ def index():
             return "урока"
         return "уроков"
 
-    now = datetime.utcnow()
+    for lesson in upcoming_sessions:
+        if lesson.id not in session_states:
+            session_states[lesson.id] = compute_session_state(lesson, now_naive)
+
+    for lesson in sessions_today:
+        if lesson.id not in session_states:
+            session_states[lesson.id] = compute_session_state(lesson, now_naive)
+
+    now = now_local
     current_hour = now.hour
     if 5 <= current_hour < 12:
         greeting = "Доброе утро"
@@ -553,6 +666,7 @@ def index():
         teacher_messages=teacher_messages,
         teacher_messages_due=teacher_messages_due,
         assigned_subjects=assigned_subjects,
+        session_states=session_states,
     )
 
 
@@ -615,6 +729,158 @@ def admin_dashboard():
     )
 
 
+@bp.route("/admin/stats")
+@login_required(ADMIN_ROLE)
+def admin_stats():
+    admin_id = session.get("admin_id")
+    admin_user = Admin.query.get(admin_id) if admin_id else None
+    if not admin_user:
+        session.clear()
+        flash("Сессия администратора истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
+
+    today = datetime.utcnow().date()
+    current_year = today.year
+    current_month = today.month
+    months: list[tuple[int, int]] = []
+    for _ in range(6):
+        months.append((current_year, current_month))
+        current_month -= 1
+        if current_month == 0:
+            current_month = 12
+            current_year -= 1
+    months.reverse()
+
+    payment_labels: list[str] = []
+    payment_values: list[float] = []
+    student_values: list[int] = []
+
+    for year, month in months:
+        start = date(year, month, 1)
+        if month == 12:
+            next_month = date(year + 1, 1, 1)
+        else:
+            next_month = date(year, month + 1, 1)
+        end = next_month - timedelta(days=1)
+
+        monthly_total = (
+            db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0))
+            .filter(Payment.paid_on >= start, Payment.paid_on <= end)
+            .scalar()
+            or 0
+        )
+        payment_values.append(float(monthly_total))
+        month_label = f"{MONTH_NAMES[month]} {str(year)[2:]}"
+        payment_labels.append(month_label)
+
+        start_dt = datetime.combine(start, datetime.min.time())
+        next_dt = datetime.combine(next_month, datetime.min.time())
+        new_students = (
+            Student.query.filter(
+                Student.created_at >= start_dt,
+                Student.created_at < next_dt,
+            )
+            .count()
+        )
+        student_values.append(new_students)
+
+    subject_distribution = (
+        db.session.query(
+            Student.subject,
+            db.func.count(Session.id),
+        )
+        .join(Student, Session.student_id == Student.id)
+        .group_by(Student.subject)
+        .all()
+    )
+    subject_labels = [entry[0] or "Без предмета" for entry in subject_distribution]
+    subject_values = [int(entry[1]) for entry in subject_distribution]
+
+    teacher_revenue_query = (
+        db.session.query(
+            Teacher.username,
+            db.func.coalesce(db.func.sum(Payment.amount), 0).label("total"),
+        )
+        .outerjoin(Student, Student.teacher_id == Teacher.id)
+        .outerjoin(Payment, Payment.student_id == Student.id)
+        .group_by(Teacher.id)
+        .order_by(db.text("total DESC"))
+        .limit(5)
+    )
+    teacher_revenue = [
+        {"teacher": row[0], "total": float(row[1])} for row in teacher_revenue_query
+    ]
+
+    total_students = Student.query.count()
+    total_sessions = Session.query.count()
+    total_payments = (
+        db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar() or 0
+    )
+    active_assignments = Assignment.query.filter(Assignment.status != "completed").count()
+
+    payments_chart = json.dumps(
+        {
+            "labels": payment_labels,
+            "datasets": [
+                {
+                    "label": "Платежи, ₽",
+                    "data": payment_values,
+                    "borderColor": "#6366f1",
+                    "backgroundColor": "rgba(99,102,241,0.15)",
+                    "tension": 0.35,
+                    "fill": True,
+                }
+            ],
+        }
+    )
+
+    students_chart = json.dumps(
+        {
+            "labels": payment_labels,
+            "datasets": [
+                {
+                    "label": "Новые ученики",
+                    "data": student_values,
+                    "backgroundColor": "rgba(34,197,94,0.45)",
+                    "borderColor": "#22c55e",
+                    "borderWidth": 1,
+                }
+            ],
+        }
+    )
+
+    subjects_chart = json.dumps(
+        {
+            "labels": subject_labels,
+            "datasets": [
+                {
+                    "data": subject_values,
+                    "backgroundColor": [
+                        "#6366f1",
+                        "#22c55e",
+                        "#f97316",
+                        "#ec4899",
+                        "#0ea5e9",
+                        "#facc15",
+                        "#14b8a6",
+                    ],
+                }
+            ],
+        }
+    )
+
+    return render_template(
+        "admin_stats.html",
+        admin=admin_user,
+        total_students=total_students,
+        total_sessions=total_sessions,
+        total_payments=total_payments,
+        active_assignments=active_assignments,
+        payments_chart=payments_chart,
+        students_chart=students_chart,
+        subjects_chart=subjects_chart,
+        teacher_revenue=teacher_revenue,
+    )
 @bp.route("/admin/teachers", methods=["GET", "POST"])
 @login_required(ADMIN_ROLE)
 def admin_manage_teachers():
@@ -1178,6 +1444,65 @@ def admin_messages():
     )
 
 
+@bp.route("/admin/broadcast", methods=["GET", "POST"])
+@login_required(ADMIN_ROLE)
+def admin_broadcast():
+    admin = Admin.query.get(session.get("admin_id"))
+    if not admin:
+        session.clear()
+        flash("Сессия администратора истекла, войдите снова.", "warning")
+        return redirect(url_for("diary.login"))
+
+    if request.method == "POST":
+        audience = request.form.get("audience", "teachers")
+        subject_line = request.form.get("subject", "").strip()
+        body = request.form.get("body", "").strip()
+        due_date_str = request.form.get("due_date", "").strip()
+        due_date_value = None
+        if due_date_str:
+            try:
+                due_date_value = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                flash("Дата должна быть в формате ГГГГ-ММ-ДД.", "danger")
+                return redirect(url_for("diary.admin_broadcast"))
+
+        if not subject_line or not body:
+            flash("Укажите тему и текст сообщения.", "danger")
+            return redirect(url_for("diary.admin_broadcast"))
+
+        if audience not in {"teachers", "students"}:
+            flash("Выберите аудиторию для рассылки.", "danger")
+            return redirect(url_for("diary.admin_broadcast"))
+
+        target_role = TEACHER_ROLE if audience == "teachers" else STUDENT_ROLE
+        db.session.add(
+            AdminCommunication(
+                admin_id=admin.id,
+                target_role=target_role,
+                subject=subject_line,
+                body=body,
+                is_global=True,
+                due_date=due_date_value,
+            )
+        )
+        db.session.commit()
+        flash("Рассылка успешно отправлена.", "success")
+        return redirect(url_for("diary.admin_broadcast"))
+
+    recent_broadcasts = (
+        AdminCommunication.query.filter(AdminCommunication.is_global.is_(True))
+        .order_by(AdminCommunication.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    return render_template(
+        "admin_broadcast.html",
+        admin=admin,
+        recent_broadcasts=recent_broadcasts,
+    )
+
+
 @bp.route("/subjects", methods=["GET", "POST"])
 @login_required(ADMIN_ROLE)
 def manage_subjects():
@@ -1369,6 +1694,36 @@ def student_detail(student_id: int):
                 )
                 db.session.add(assignment)
                 db.session.commit()
+                attachments_to_add: list[AssignmentAttachment] = []
+                upload_root = Path(current_app.static_folder or "static") / "uploads" / "assignments"
+                upload_root.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+                for slot in range(1, 4):
+                    attachment_title = request.form.get(f"attachment_title_{slot}", "").strip()
+                    attachment_url = request.form.get(f"attachment_url_{slot}", "").strip()
+                    upload_file = request.files.get(f"attachment_file_{slot}")
+                    stored_path = None
+                    if upload_file and upload_file.filename:
+                        filename = secure_filename(upload_file.filename)
+                        if filename:
+                            unique_name = f"{assignment.id}_{timestamp}_{slot}_{filename}"
+                            target_path = upload_root / unique_name
+                            upload_file.save(target_path)
+                            stored_path = f"uploads/assignments/{unique_name}"
+                    if stored_path and not attachment_url:
+                        attachment_url = stored_path
+                    if attachment_url or attachment_title:
+                        title_value = attachment_title or (upload_file.filename if upload_file and upload_file.filename else "Материал")
+                        attachments_to_add.append(
+                            AssignmentAttachment(
+                                assignment_id=assignment.id,
+                                title=title_value,
+                                url=attachment_url or stored_path,
+                            )
+                        )
+                if attachments_to_add:
+                    db.session.add_all(attachments_to_add)
+                    db.session.commit()
                 flash("Домашнее задание добавлено.", "success")
         elif action == "add_material":
             title = request.form.get("title", "").strip()
@@ -1410,6 +1765,39 @@ def student_detail(student_id: int):
                 assignment.status = status
                 db.session.commit()
                 flash("Статус задания обновлён.", "success")
+        elif action == "delete_attachment":
+            attachment_id_raw = request.form.get("attachment_id")
+            attachment_id = (
+                int(attachment_id_raw)
+                if attachment_id_raw and attachment_id_raw.isdigit()
+                else None
+            )
+            if attachment_id:
+                attachment = (
+                    AssignmentAttachment.query.join(Assignment)
+                    .filter(
+                        AssignmentAttachment.id == attachment_id,
+                        Assignment.student_id == student.id,
+                    )
+                    .first()
+                )
+            else:
+                attachment = None
+            if attachment:
+                stored_url = attachment.url or ""
+                if stored_url and not stored_url.startswith("http"):
+                    upload_root = Path(current_app.static_folder or "static")
+                    target_path = upload_root / stored_url
+                    if target_path.exists():
+                        try:
+                            target_path.unlink()
+                        except OSError:
+                            current_app.logger.warning(
+                                "Не удалось удалить файл вложения %s", target_path
+                            )
+                db.session.delete(attachment)
+                db.session.commit()
+                flash("Материал удалён из задания.", "info")
         return redirect(url_for("diary.student_detail", student_id=student.id))
 
     subject_profile = (
@@ -1516,12 +1904,34 @@ def manage_sessions():
             flash("Информация об оплате обновлена.", "success")
             return redirect(redirect_target)
 
+        if action == "update_join_link":
+            session_id_raw = request.form.get("session_id")
+            lesson = (
+                Session.query.get(int(session_id_raw))
+                if session_id_raw and session_id_raw.isdigit()
+                else None
+            )
+            if not lesson or lesson.student.teacher_id != teacher.id:
+                flash("Занятие не найдено или относится к другому преподавателю.", "danger")
+                return redirect(redirect_target)
+
+            join_link_value = request.form.get("join_link", "").strip()
+            if join_link_value and not join_link_value.startswith("http"):
+                flash("Ссылка на урок должна начинаться с http(s).", "danger")
+                return redirect(redirect_target)
+
+            lesson.join_link = join_link_value or None
+            db.session.commit()
+            flash("Ссылка на урок обновлена.", "success")
+            return redirect(redirect_target)
+
         student_id_raw = request.form.get("student_id", "")
         date_str = request.form.get("date")
         start_time_str = request.form.get("start_time")
         duration = request.form.get("duration_minutes")
         topic = request.form.get("topic", "").strip()
         homework = request.form.get("homework", "").strip() or None
+        join_link = request.form.get("join_link", "").strip()
         status = request.form.get("status", "scheduled")
         payment_state = request.form.get("payment_status", "unpaid")
         fee_amount_str = request.form.get("fee_amount", "").strip()
@@ -1547,6 +1957,10 @@ def manage_sessions():
         if payment_state not in PAYMENT_STATUS_CHOICES:
             payment_state = "unpaid"
 
+        if join_link and not join_link.startswith("http"):
+            flash("Ссылка на урок должна начинаться с http(s).", "danger")
+            return redirect(redirect_target)
+
         if date_str and start_time_str and duration and topic:
             session_entry = Session(
                 student_id=student_obj.id,
@@ -1558,6 +1972,7 @@ def manage_sessions():
                 status=status,
                 fee_amount=fee_amount,
                 payment_status=payment_state,
+                join_link=join_link if join_link and join_link.startswith("http") else None,
             )
             db.session.add(session_entry)
             db.session.commit()
@@ -1748,7 +2163,11 @@ def student_board():
         )
         return redirect(url_for("diary.login"))
 
-    today = datetime.utcnow().date()
+    tz = current_app.config.get("MOSCOW_TIMEZONE")
+    now_local = datetime.now(tz) if tz else datetime.utcnow()
+    now_naive = now_local.replace(tzinfo=None)
+    today = now_naive.date()
+
     upcoming_sessions = (
         Session.query.filter(Session.student_id == student.id, Session.date >= today)
         .order_by(Session.date.asc(), Session.start_time.asc())
@@ -1845,7 +2264,7 @@ def student_board():
         "suggestions": [],
     }
     outstanding_sessions = [
-        lesson for lesson in upcoming_sessions if lesson.payment_status != "paid"
+        lesson for lesson in upcoming_sessions if lesson.payment_status == "unpaid"
     ]
     outstanding_total = sum(
         (lesson.fee_amount or Decimal("0")) for lesson in outstanding_sessions
@@ -1862,7 +2281,6 @@ def student_board():
         and task.status != "completed"
         and 0 <= (task.due_date - today).days <= 3
     ]
-    latest_material = materials[0] if materials else None
 
     if outstanding_sessions:
         payment_assistant.update(
@@ -1949,15 +2367,95 @@ def student_board():
                 "tone": "warning",
             }
         )
-    elif latest_material:
-        payment_assistant["suggestions"].append(
+
+    next_session = upcoming_sessions[0] if upcoming_sessions else None
+    session_states: dict[int, dict[str, object]] = {}
+    for lesson in upcoming_sessions:
+        state = compute_session_state(lesson, now_naive)
+        state["join_available"] = bool(lesson.join_link and state.get("join_window"))
+        session_states[lesson.id] = state
+
+    next_session_state = session_states.get(next_session.id) if next_session else None
+
+    notifications: list[dict[str, object]] = []
+    recent_window = now_naive - timedelta(days=7)
+
+    if next_session and next_session_state:
+        notifications.append(
             {
-                "icon": "📚",
-                "title": "Поделись новыми материалами",
-                "body": "Покажи родителям свежие материалы от преподавателя — так проще обсудить нужные платежи.",
-                "tone": "success",
+                "icon": "📅",
+                "title": "Новый урок в расписании",
+                "body": f"{next_session.date.strftime('%d.%m')} в {next_session.start_time.strftime('%H:%M')} — {next_session.topic}",
+                "tone": "schedule",
             }
         )
+
+    recent_teacher_messages = (
+        ChatMessage.query.filter(
+            ChatMessage.student_id == student.id,
+            ChatMessage.sender == TEACHER_ROLE,
+            ChatMessage.created_at >= recent_window,
+        )
+        .order_by(ChatMessage.created_at.desc())
+        .limit(3)
+        .all()
+    )
+    for message in recent_teacher_messages:
+        notifications.append(
+            {
+                "icon": "💬",
+                "title": "Новое сообщение от преподавателя",
+                "body": message.content[:140] + ("…" if len(message.content) > 140 else ""),
+                "tone": "message",
+            }
+        )
+
+    for assignment in assignments:
+        if assignment.created_at >= recent_window:
+            notifications.append(
+                {
+                    "icon": "📝",
+                    "title": "Новое домашнее задание",
+                    "body": assignment.title,
+                    "tone": "homework",
+                }
+            )
+
+    for material in materials:
+        if material.created_at >= recent_window:
+            notifications.append(
+                {
+                    "icon": "📚",
+                    "title": "Добавлен новый материал",
+                    "body": material.title,
+                    "tone": "material",
+                }
+            )
+
+    for lesson in upcoming_sessions:
+        state = session_states.get(lesson.id)
+        if not state:
+            continue
+        if lesson.payment_status == "invoiced":
+            notifications.append(
+                {
+                    "icon": "📨",
+                    "title": "Счёт отправлен",
+                    "body": f"Урок {lesson.date.strftime('%d.%m')} — преподаватель ждёт подтверждения.",
+                    "tone": "payment",
+                }
+            )
+        elif lesson.payment_status == "unpaid":
+            notifications.append(
+                {
+                    "icon": "💡",
+                    "title": "Напомни про оплату",
+                    "body": f"Урок {lesson.date.strftime('%d.%m')} ещё не оплачен.",
+                    "tone": "payment",
+                }
+            )
+
+    notifications = notifications[:8]
 
     return render_template(
         "student_dashboard.html",
@@ -1982,6 +2480,10 @@ def student_board():
         payment_assistant=payment_assistant,
         student_messages=student_messages,
         student_messages_due=student_messages_due,
+        session_states=session_states,
+        next_session=next_session,
+        next_session_state=next_session_state,
+        notifications=notifications,
     )
 
 
@@ -2080,6 +2582,73 @@ def student_materials():
         student=student,
         materials=materials,
         library_preview=library_preview,
+    )
+
+
+@bp.route("/student/profile", methods=["GET", "POST"])
+@login_required(STUDENT_ROLE)
+def student_profile():
+    student = current_student()
+    if not student:
+        session.clear()
+        flash(
+            "Профиль недоступен: аккаунт ученика не найден. Войдите снова.",
+            "warning",
+        )
+        return redirect(url_for("diary.login"))
+
+    if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        email = request.form.get("email", "").strip() or None
+        phone = request.form.get("phone", "").strip() or None
+        contacts = request.form.get("contact_info", "").strip() or None
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        remove_avatar = request.form.get("remove_avatar") == "1"
+
+        if full_name:
+            student.full_name = full_name
+        student.email = email
+        student.phone = phone
+        student.contact_info = contacts
+
+        if new_password:
+            if new_password != confirm_password:
+                flash("Пароли не совпадают.", "danger")
+                return redirect(url_for("diary.student_profile"))
+            student.set_password(new_password)
+
+        avatar_file = request.files.get("avatar")
+        if avatar_file and avatar_file.filename:
+            upload_root = Path(current_app.static_folder or "static") / "uploads" / "avatars"
+            upload_root.mkdir(parents=True, exist_ok=True)
+            filename = secure_filename(avatar_file.filename)
+            if filename:
+                unique_name = f"student_{student.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{filename}"
+                target_path = upload_root / unique_name
+                avatar_file.save(target_path)
+                student.avatar_path = f"uploads/avatars/{unique_name}"
+        elif remove_avatar:
+            student.avatar_path = None
+
+        db.session.commit()
+        flash("Профиль обновлён.", "success")
+        return redirect(url_for("diary.student_profile"))
+
+    avatar_url = None
+    if student.avatar_path:
+        avatar_url = (
+            student.avatar_path
+            if student.avatar_path.startswith("http")
+            else url_for("static", filename=student.avatar_path)
+        )
+
+    return render_template(
+        "student_profile.html",
+        student=student,
+        avatar_url=avatar_url,
+        avatar_initials=initials_from_name(student.full_name),
+        avatar_color=avatar_color_for_name(student.full_name),
     )
 
 

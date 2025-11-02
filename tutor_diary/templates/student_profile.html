@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Профиль ученика — {{ student.full_name }}{% endblock %}
+{% block content %}
+<section class="panel panel--profile">
+  <div class="panel__header">
+    <h1>Профиль ученика</h1>
+    <span class="chip">В системе с {{ student.created_at.strftime('%d.%m.%Y') }}</span>
+  </div>
+  <form method="post" enctype="multipart/form-data" class="form form--profile">
+    <div class="profile-card">
+      {% if avatar_url %}
+        <img src="{{ avatar_url }}" alt="Аватар {{ student.full_name }}" class="profile-card__avatar" />
+      {% else %}
+        <span class="profile-card__avatar profile-card__avatar--placeholder" style="--avatar-color: {{ avatar_color }}">
+          {{ avatar_initials }}
+        </span>
+      {% endif %}
+      <label class="btn btn--ghost profile-card__upload">
+        Загрузить аватар
+        <input type="file" name="avatar" accept="image/*" hidden />
+      </label>
+      {% if avatar_url %}
+        <label class="profile-card__remove">
+          <input type="checkbox" name="remove_avatar" value="1" /> Удалить текущий аватар
+        </label>
+      {% endif %}
+    </div>
+    <div class="form__grid">
+      <label class="form__field">
+        <span>Имя и фамилия</span>
+        <input type="text" name="full_name" value="{{ student.full_name }}" required />
+      </label>
+      <label class="form__field">
+        <span>Email</span>
+        <input type="email" name="email" value="{{ student.email or '' }}" placeholder="student@example.com" />
+      </label>
+      <label class="form__field">
+        <span>Телефон</span>
+        <input type="tel" name="phone" value="{{ student.phone or '' }}" placeholder="+7 (999) 123-45-67" />
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Контакты (мессенджеры, соцсети)</span>
+        <textarea name="contact_info" rows="3" placeholder="Telegram, VK, дополнительные данные">{{ student.contact_info or '' }}</textarea>
+      </label>
+      <fieldset class="form__fieldset">
+        <legend>Смена пароля</legend>
+        <label>
+          <span>Новый пароль</span>
+          <input type="password" name="new_password" placeholder="Введите новый пароль" />
+        </label>
+        <label>
+          <span>Подтверждение</span>
+          <input type="password" name="confirm_password" placeholder="Повторите пароль" />
+        </label>
+        <p class="muted">Оставьте поля пустыми, чтобы сохранить текущий пароль.</p>
+      </fieldset>
+    </div>
+    <div class="form__actions form__actions--end">
+      <a class="btn btn--ghost" href="{{ url_for('diary.student_board') }}">Вернуться на панель</a>
+      <button type="submit" class="btn btn--primary">Сохранить изменения</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

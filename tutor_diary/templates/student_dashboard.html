@@ -17,16 +17,38 @@
       <a class="btn btn--primary" href="{{ url_for('diary.student_homework') }}">Домашние задания</a>
       <a class="btn btn--ghost" href="{{ url_for('diary.student_chat') }}">Написать преподавателю</a>
     </div>
+    <p class="student-hero__hint">
+      {% if next_session_state and next_session %}
+        Ближайший урок {{ next_session.date.strftime('%d.%m') }} — {{ next_session_state.time_hint | lower }}.
+      {% else %}
+        Когда появится новое занятие, мы подскажем, сколько осталось до старта.
+      {% endif %}
+    </p>
   </div>
   <div class="student-hero__card">
     <h3>Ближайший урок</h3>
-    {% if upcoming_sessions %}
+    {% if next_session %}
+      {% set hero_state = next_session_state or {'tone': 'upcoming', 'label': 'Не пройден', 'time_hint': 'Ждём подтверждения начала урока', 'join_available': false} %}
       <p class="student-hero__date">
-        {{ upcoming_sessions[0].date.strftime('%d %B') }} · {{ upcoming_sessions[0].start_time.strftime('%H:%M') }}
+        {{ next_session.date.strftime('%d %B') }} · {{ next_session.start_time.strftime('%H:%M') }}
       </p>
-      <p>{{ upcoming_sessions[0].topic }}</p>
-      {% if upcoming_sessions[0].homework %}
-        <p class="muted">Подготовка: {{ upcoming_sessions[0].homework }}</p>
+      <p class="student-hero__topic">{{ next_session.topic }}</p>
+      <div class="lesson-status lesson-status--{{ hero_state.tone }}">
+        {{ hero_state.label }}
+      </div>
+      <p class="student-hero__meta">{{ hero_state.time_hint }}</p>
+      {% if next_session.homework %}
+        <p class="muted">Подготовка: {{ next_session.homework }}</p>
+      {% endif %}
+      {% if hero_state.join_available %}
+        <a
+          class="btn btn--neon"
+          href="{{ next_session.join_link }}"
+          target="_blank"
+          rel="noopener"
+        >
+          Подключиться на урок
+        </a>
       {% endif %}
     {% else %}
       <p class="muted">Расписание пока свободно — ожидайте новых занятий.</p>
@@ -68,8 +90,10 @@
             {% if lessons %}
               <ul class="calendar__list">
                 {% for lesson in lessons %}
-                  <li>
-                    {{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.topic }}
+                  {% set state = session_states.get(lesson.id) %}
+                  <li class="calendar__lesson calendar__lesson--{{ state.tone if state else 'upcoming' }}">
+                    <span class="calendar__lesson-time">{{ lesson.start_time.strftime('%H:%M') }}</span>
+                    <span class="calendar__lesson-topic">{{ lesson.topic }}</span>
                   </li>
                 {% endfor %}
               </ul>
@@ -119,15 +143,16 @@
       <a class="chip" href="{{ url_for('diary.student_materials') }}">Все материалы</a>
     </div>
     {% if materials %}
-      <ul class="stack">
+      <ul class="material-stream">
         {% for material in materials %}
-          <li class="stack__item">
-            <div class="stack__title">{{ material.title }}</div>
+          <li class="material-stream__item">
+            <div class="material-stream__title">{{ material.title }}</div>
+            <div class="material-stream__meta">
+              <span>{{ material.created_at.strftime('%d.%m.%Y') }}</span>
+              {% if material.url %}<span>·</span><a href="{{ material.url }}" target="_blank" rel="noopener">Открыть</a>{% endif %}
+            </div>
             {% if material.notes %}
-              <p class="stack__text">{{ material.notes }}</p>
-            {% endif %}
-            {% if material.url %}
-              <a class="link" href="{{ material.url }}" target="_blank" rel="noopener">Открыть</a>
+              <p class="material-stream__notes">{{ material.notes }}</p>
             {% endif %}
           </li>
         {% endfor %}
@@ -142,7 +167,7 @@
 
   <article class="panel panel--assistant">
     <div class="panel__header">
-      <h2>Последние оплаты</h2>
+      <h2>Помощник по оплатам</h2>
       <span class="chip chip--light">Помощник</span>
     </div>
     <div class="assistant assistant--{{ payment_assistant.tone }}">
@@ -182,6 +207,28 @@
       {% endif %}
     </div>
   </article>
+</section>
+
+<section class="panel panel--notifications">
+  <div class="panel__header">
+    <h2>Уведомления</h2>
+    <span class="chip chip--light">Последние события</span>
+  </div>
+  {% if notifications %}
+    <ul class="notification-feed">
+      {% for item in notifications %}
+        <li class="notification-feed__item notification-feed__item--{{ item.tone }}">
+          <div class="notification-feed__icon">{{ item.icon }}</div>
+          <div class="notification-feed__body">
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.body }}</p>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Пока нет новых событий — как только появятся обновления, мы сообщим.</p>
+  {% endif %}
 </section>
 
 {% if library_preview %}
@@ -227,7 +274,10 @@
           <div class="timeline__content">
             <h3>{{ lesson.topic }}</h3>
             {% if lesson.homework %}<p class="timeline__homework">Подготовка: {{ lesson.homework }}</p>{% endif %}
-            <span class="status status--{{ lesson.status }}">{{ lesson.status|title }}</span>
+            {% set state = session_states.get(lesson.id) %}
+            <span class="lesson-status lesson-status--{{ state.tone if state else 'upcoming' }}">
+              {{ state.label if state else lesson.status|title }}
+            </span>
           </div>
         </li>
       {% endfor %}

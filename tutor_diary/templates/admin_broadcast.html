@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Рассылка — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--broadcast">
+  <div class="panel__header">
+    <h1>Массовая рассылка</h1>
+    <p class="muted">
+      Быстро отправьте сообщение всем преподавателям или всем ученикам. Выберите аудиторию, тему и текст письма.
+    </p>
+  </div>
+  <form method="post" class="form form--grid">
+    <label class="form__field">
+      <span>Кому</span>
+      <select name="audience">
+        <option value="teachers">Все преподаватели</option>
+        <option value="students">Все ученики</option>
+      </select>
+    </label>
+    <label class="form__field">
+      <span>Срок исполнения (необязательно)</span>
+      <input type="date" name="due_date" />
+    </label>
+    <label class="form__field form__field--wide">
+      <span>Тема сообщения</span>
+      <input type="text" name="subject" placeholder="Например, Обновление расписания" required />
+    </label>
+    <label class="form__field form__field--wide">
+      <span>Текст сообщения</span>
+      <textarea name="body" rows="6" placeholder="Введите текст рассылки" required></textarea>
+    </label>
+    <div class="form__actions">
+      <button type="submit" class="btn btn--primary">Отправить рассылку</button>
+    </div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__header">
+    <h2>Последние массовые сообщения</h2>
+  </div>
+  {% if recent_broadcasts %}
+    <ul class="stack">
+      {% for item in recent_broadcasts %}
+        <li class="stack__item">
+          <div class="stack__title">{{ item.subject }}</div>
+          <p class="stack__meta">
+            {{ item.created_at.strftime('%d.%m.%Y %H:%M') }} · {% if item.target_role == 'teacher' %}Преподаватели{% else %}Ученики{% endif %}
+            {% if item.due_date %}· Срок: {{ item.due_date.strftime('%d.%m.%Y') }}{% endif %}
+          </p>
+          <p class="stack__text">{{ item.body }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Массовых рассылок ещё не было.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -23,11 +23,12 @@
       <nav class="navbar__menu">
         {% if session.get('role') == 'admin' %}
           <a href="{{ url_for('diary.admin_dashboard') }}" class="navbar__link">Админ-панель</a>
+          <a href="{{ url_for('diary.admin_stats') }}" class="navbar__link">Статистика</a>
           <a href="{{ url_for('diary.admin_manage_teachers') }}" class="navbar__link">Преподаватели</a>
           <a href="{{ url_for('diary.admin_manage_students') }}" class="navbar__link">Ученики</a>
           <a href="{{ url_for('diary.admin_messages') }}" class="navbar__link">Коммуникации</a>
+          <a href="{{ url_for('diary.admin_broadcast') }}" class="navbar__link">Рассылка</a>
           <a href="{{ url_for('diary.manage_subjects') }}" class="navbar__link">Предметы</a>
-          <a href="{{ url_for('diary.manage_library') }}" class="navbar__link">Библиотека</a>
           <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
         {% elif session.get('role') == 'teacher' %}
           <a href="{{ url_for('diary.index') }}" class="navbar__link">Панель</a>
@@ -41,11 +42,42 @@
           <a href="{{ url_for('diary.student_homework') }}" class="navbar__link">ДЗ</a>
           <a href="{{ url_for('diary.student_materials') }}" class="navbar__link">Материалы</a>
           <a href="{{ url_for('diary.student_chat') }}" class="navbar__link">Чат</a>
-          <a href="{{ url_for('diary.logout') }}" class="navbar__logout">Выход</a>
         {% else %}
           <a href="{{ url_for('diary.login') }}" class="navbar__link">Вход</a>
         {% endif %}
       </nav>
+      {% if session.get('role') == 'student' and active_student %}
+        <div class="navbar__profile">
+          <details class="profile-menu">
+            <summary class="profile-menu__toggle">
+              {% if active_student_avatar_url %}
+                <img
+                  src="{{ active_student_avatar_url }}"
+                  alt="Аватар {{ active_student.full_name }}"
+                  class="profile-menu__avatar"
+                />
+              {% else %}
+                <span
+                  class="profile-menu__avatar profile-menu__avatar--placeholder"
+                  style="--avatar-color: {{ active_student_avatar_color }}"
+                >
+                  {{ active_student_initials }}
+                </span>
+              {% endif %}
+            </summary>
+            <div class="profile-menu__dropdown">
+              <div class="profile-menu__meta">
+                <strong>{{ active_student.full_name }}</strong>
+                {% if active_student.email %}
+                  <span>{{ active_student.email }}</span>
+                {% endif %}
+              </div>
+              <a href="{{ url_for('diary.student_profile') }}" class="profile-menu__link">Профиль</a>
+              <a href="{{ url_for('diary.logout') }}" class="profile-menu__link profile-menu__link--logout">Выход</a>
+            </div>
+          </details>
+        </div>
+      {% endif %}
     </header>
     <main class="container">
       {% with messages = get_flashed_messages(with_categories=true) %}

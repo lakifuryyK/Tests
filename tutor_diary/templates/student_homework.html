@@ -24,6 +24,23 @@
           {% if assignment.description %}
             <p class="stack__text">{{ assignment.description }}</p>
           {% endif %}
+          {% if assignment.attachments %}
+            <ul class="attachment-list">
+              {% for attachment in assignment.attachments %}
+                <li class="attachment-list__item">
+                  <a
+                    href="{{ attachment.url if attachment.url and attachment.url.startswith('http') else url_for('static', filename=attachment.url) }}"
+                    class="attachment attachment--student"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    <span class="attachment__icon">📎</span>
+                    <span class="attachment__title">{{ attachment.title }}</span>
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
           <form method="post" class="inline-form">
             <input type="hidden" name="assignment_id" value="{{ assignment.id }}" />
             <button type="submit" class="btn btn--ghost">

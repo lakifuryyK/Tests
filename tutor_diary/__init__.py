@@ -126,11 +126,13 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(diary_bp)
 
     moscow_timezone = _resolve_moscow_timezone()
+    app.config.setdefault("MOSCOW_TIMEZONE", moscow_timezone)
 
     @app.context_processor
     def inject_now():
         def now_moscow():
-            return datetime.now(moscow_timezone)
+            tz = app.config.get("MOSCOW_TIMEZONE", moscow_timezone)
+            return datetime.now(tz)
 
         return {"now": now_moscow, "now_moscow": now_moscow}
 
@@ -226,6 +228,15 @@ def create_app(test_config: dict | None = None) -> Flask:
             if "teacher_id" not in student_columns:
                 db.session.execute(text("ALTER TABLE students ADD COLUMN teacher_id INTEGER"))
                 db.session.commit()
+            if "email" not in student_columns:
+                db.session.execute(text("ALTER TABLE students ADD COLUMN email VARCHAR(120)"))
+                db.session.commit()
+            if "phone" not in student_columns:
+                db.session.execute(text("ALTER TABLE students ADD COLUMN phone VARCHAR(50)"))
+                db.session.commit()
+            if "avatar_path" not in student_columns:
+                db.session.execute(text("ALTER TABLE students ADD COLUMN avatar_path VARCHAR(255)"))
+                db.session.commit()
 
         if "teachers" in table_names:
             teacher_columns = {column["name"] for column in inspector.get_columns("teachers")}
@@ -269,8 +280,28 @@ def create_app(test_config: dict | None = None) -> Flask:
                     text("ALTER TABLE sessions ADD COLUMN payment_id INTEGER")
                 )
                 altered = True
+            if "join_link" not in session_columns:
+                db.session.execute(
+                    text("ALTER TABLE sessions ADD COLUMN join_link VARCHAR(255)")
+                )
+                altered = True
             if altered:
                 db.session.commit()
+
+        if "assignment_attachments" not in table_names:
+            db.session.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS assignment_attachments ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    "assignment_id INTEGER NOT NULL REFERENCES assignments(id)"
+                    " ON DELETE CASCADE,"
+                    "title VARCHAR(255) NOT NULL,"
+                    "url VARCHAR(255),"
+                    "created_at DATETIME"
+                    ")"
+                )
+            )
+            db.session.commit()
 
     def bootstrap_database() -> None:
         """Ensure tables and the default admin account exist."""

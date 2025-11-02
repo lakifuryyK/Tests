@@ -61,7 +61,10 @@ class Student(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     subject = db.Column(db.String(120), nullable=True)
+    email = db.Column(db.String(120), nullable=True)
+    phone = db.Column(db.String(50), nullable=True)
     contact_info = db.Column(db.String(255), nullable=True)
+    avatar_path = db.Column(db.String(255), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -104,6 +107,7 @@ class Session(db.Model):
     fee_amount = db.Column(db.Numeric(10, 2), nullable=True)
     payment_status = db.Column(db.String(20), nullable=False, default="unpaid")
     payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True)
+    join_link = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -130,6 +134,25 @@ class Assignment(db.Model):
     description = db.Column(db.Text, nullable=True)
     due_date = db.Column(db.Date, nullable=True)
     status = db.Column(db.String(50), default="assigned", nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    attachments = db.relationship(
+        "AssignmentAttachment",
+        backref="assignment",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+
+class AssignmentAttachment(db.Model):
+    __tablename__ = "assignment_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(
+        db.Integer, db.ForeignKey("assignments.id"), nullable=False
+    )
+    title = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 

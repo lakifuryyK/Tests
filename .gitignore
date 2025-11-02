@@ -7,3 +7,4 @@ instance/
 .vscode/
 .idea/
 .venv/
+tutor_diary/static/uploads/
