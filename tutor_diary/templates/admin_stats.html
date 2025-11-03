@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Статистика — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--stats-intro">
+  <div>
+    <h1>Статистика проекта</h1>
+    <p class="muted">
+      Отслеживайте динамику платежей, рост учеников и популярность предметов, чтобы оперативно реагировать на ситуацию.
+    </p>
+  </div>
+</section>
+<section class="grid grid--stats">
+  <article class="card card--gradient">
+    <h2>Ученики</h2>
+    <p class="card__value">{{ total_students }}</p>
+    <p class="card__meta">Всего учеников в системе</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Занятия</h2>
+    <p class="card__value">{{ total_sessions }}</p>
+    <p class="card__meta">Проведённых и запланированных уроков</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Оборот</h2>
+    <p class="card__value">{{ '{:,.2f}'.format(total_payments).replace(',', ' ') }} ₽</p>
+    <p class="card__meta">Сумма оплаченных уроков</p>
+  </article>
+  <article class="card card--gradient">
+    <h2>Активные ДЗ</h2>
+    <p class="card__value">{{ active_assignments }}</p>
+    <p class="card__meta">Домашних заданий в работе</p>
+  </article>
+</section>
+<section class="grid grid--two stats-grid">
+  <article class="panel panel--chart">
+    <div class="panel__header">
+      <h2>Платежи за 6 месяцев</h2>
+    </div>
+    <canvas id="paymentsChart" height="220"></canvas>
+  </article>
+  <article class="panel panel--chart">
+    <div class="panel__header">
+      <h2>Новые ученики по месяцам</h2>
+    </div>
+    <canvas id="studentsChart" height="220"></canvas>
+  </article>
+</section>
+<section class="grid grid--two stats-grid">
+  <article class="panel panel--chart panel--full">
+    <div class="panel__header">
+      <h2>Популярность предметов</h2>
+    </div>
+    <canvas id="subjectsChart" height="260"></canvas>
+  </article>
+  <article class="panel panel--leaderboard">
+    <div class="panel__header">
+      <h2>ТОП-5 преподавателей по обороту</h2>
+    </div>
+    {% if teacher_revenue %}
+      <ol class="leaderboard">
+        {% for row in teacher_revenue %}
+          <li class="leaderboard__item">
+            <span class="leaderboard__name">{{ loop.index }}. {{ row.teacher }}</span>
+            <span class="leaderboard__value">{{ '{:,.2f}'.format(row.total).replace(',', ' ') }} ₽</span>
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="muted">Пока нет данных об оплатах.</p>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const paymentsConfig = {{ payments_chart | safe }};
+    const studentsConfig = {{ students_chart | safe }};
+    const subjectsConfig = {{ subjects_chart | safe }};
+
+    const paymentsCtx = document.getElementById('paymentsChart');
+    const studentsCtx = document.getElementById('studentsChart');
+    const subjectsCtx = document.getElementById('subjectsChart');
+
+    if (paymentsCtx) {
+      new Chart(paymentsCtx, {
+        type: 'line',
+        data: paymentsConfig,
+        options: {
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    if (studentsCtx) {
+      new Chart(studentsCtx, {
+        type: 'bar',
+        data: studentsConfig,
+        options: {
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, stepSize: 1 } }
+        }
+      });
+    }
+
+    if (subjectsCtx) {
+      new Chart(subjectsCtx, {
+        type: 'doughnut',
+        data: subjectsConfig,
+        options: {
+          plugins: {
+            legend: { position: 'right' }
+          }
+        }
+      });
+    }
+  </script>
+{% endblock %}

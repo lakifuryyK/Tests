@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Вход | ОбразОн{% endblock %}
+
+{% block content %}
+  <section class="login-screen">
+    <div class="login-screen__info">
+      <span class="login-screen__eyebrow">Добро пожаловать в «ОбразОн»</span>
+      <h1>Современный вход в цифровой дневник</h1>
+      <p>
+        Авторизуйтесь под своими данными: система автоматически определит, преподаватель вы или ученик,
+        и откроет нужное меню управления.
+      </p>
+      <ul class="login-screen__list">
+        <li>Преподаватели видят расписание, финансы и прогресс всех учеников.</li>
+        <li>Ученики получают доступ к календарю, материалам, домашним заданиям и чату.</li>
+        <li>Все действия синхронизированы по московскому времени и доступны на любом устройстве.</li>
+      </ul>
+      <p class="login-screen__hint">
+        Если у вас нет доступа, свяжитесь с администратором ОбразОн для подключения учетной записи.
+      </p>
+    </div>
+    <div class="login-card">
+      <header class="login-card__header">
+        <span class="login-card__badge">Войдите в аккаунт</span>
+        <h2>Подключаем преподавателей и учеников</h2>
+        <p>
+          Пожалуйста, введите логин или email и пароль. Можно включить запоминание сессии на этом
+          устройстве.
+        </p>
+      </header>
+      <form method="post" class="login-card__form">
+        <label class="login-card__field">
+          <span>Логин или email</span>
+          <input name="username" type="text" placeholder="Введите логин или email" required />
+        </label>
+        <label class="login-card__field">
+          <span>Пароль</span>
+          <input name="password" type="password" placeholder="Введите пароль" required />
+        </label>
+        <div class="login-card__row">
+          <label class="login-card__remember">
+            <input type="checkbox" name="remember" value="1" />
+            <span>Запомнить меня</span>
+          </label>
+          <a href="#" class="login-card__link">Забыли пароль?</a>
+        </div>
+        <div class="login-card__actions">
+          <button type="submit" class="btn btn--primary btn--neon">Вход</button>
+          <button
+            type="button"
+            class="btn btn--ghost btn--neon-outline"
+            data-registration-button
+          >
+            Регистрация
+          </button>
+        </div>
+        <p
+          class="login-card__notice"
+          data-registration-notice
+          tabindex="-1"
+          hidden
+        >
+          Регистрация новых преподавателей проходит через отдел продаж. Свяжитесь с командой продаж, чтобы
+          подключить дополнительных пользователей.
+        </p>
+      </form>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const registrationButton = document.querySelector("[data-registration-button]");
+      const registrationNotice = document.querySelector("[data-registration-notice]");
+
+      if (!registrationButton || !registrationNotice) {
+        return;
+      }
+
+      registrationButton.addEventListener("click", () => {
+        if (registrationNotice.hidden) {
+          registrationNotice.hidden = false;
+        }
+
+        registrationNotice.classList.add("is-visible");
+
+        if (typeof registrationNotice.focus === "function") {
+          registrationNotice.focus();
+        }
+      });
+    });
+  </script>
+{% endblock %}

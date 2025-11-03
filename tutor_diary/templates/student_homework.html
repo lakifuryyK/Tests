@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Домашние задания — {{ student.full_name }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Домашние задания</h1>
+    <p class="muted">Следите за сроками и отмечайте выполненные задания.</p>
+  </div>
+  <div class="hero__meta">
+    <span class="chip">Всего: {{ assignments|length }}</span>
+    <span class="chip">Выполнено: {{ assignments | selectattr('status', 'equalto', 'completed') | list | length }}</span>
+  </div>
+</section>
+<section class="panel">
+  {% if assignments %}
+    <ul class="stack">
+      {% for assignment in assignments %}
+        <li class="stack__item stack__item--homework {{ 'stack__item--done' if assignment.status == 'completed' }}">
+          <div class="stack__title">{{ assignment.title }}</div>
+          <p class="stack__meta">
+            {% if assignment.due_date %}Срок: {{ assignment.due_date.strftime('%d.%m.%Y') }} · {% endif %}
+            Статус: {{ assignment.status | replace('_', ' ') | title }}
+          </p>
+          {% if assignment.description %}
+            <p class="stack__text">{{ assignment.description }}</p>
+          {% endif %}
+          {% if assignment.attachments %}
+            <ul class="attachment-list">
+              {% for attachment in assignment.attachments %}
+                <li class="attachment-list__item">
+                  <a
+                    href="{{ attachment.url if attachment.url and attachment.url.startswith('http') else url_for('static', filename=attachment.url) }}"
+                    class="attachment attachment--student"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    <span class="attachment__icon">📎</span>
+                    <span class="attachment__title">{{ attachment.title }}</span>
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          <form method="post" class="inline-form">
+            <input type="hidden" name="assignment_id" value="{{ assignment.id }}" />
+            <button type="submit" class="btn btn--ghost">
+              {% if assignment.status == 'completed' %}Отметить как невыполненное{% else %}Отметить как выполнено{% endif %}
+            </button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Пока нет назначенных заданий.</p>
+  {% endif %}
+</section>
+{% endblock %}

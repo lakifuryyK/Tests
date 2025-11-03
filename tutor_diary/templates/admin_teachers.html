@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Преподаватели — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Создать преподавателя</h2>
+    <p class="muted">
+      Администратор управляет всеми аккаунтами преподавателей. Здесь вы можете задать лимит учеников и
+      первоначальный пароль.
+    </p>
+  </div>
+  <form method="post" class="form form--grid">
+    <input type="hidden" name="action" value="create" />
+    <label class="form__field">
+      <span>Фамилия</span>
+      <input type="text" name="last_name" placeholder="Иванова" required />
+    </label>
+    <label class="form__field">
+      <span>Имя</span>
+      <input type="text" name="first_name" placeholder="Мария" required />
+    </label>
+    <label class="form__field">
+      <span>Отчество (при наличии)</span>
+      <input type="text" name="patronymic" placeholder="Александровна" />
+    </label>
+    <label class="form__field">
+      <span>Логин</span>
+      <input type="text" name="username" placeholder="Например, teacher01" required />
+    </label>
+    <label class="form__field">
+      <span>Пароль</span>
+      <input type="password" name="password" placeholder="Временный пароль" required />
+    </label>
+    <label class="form__field">
+      <span>Лимит учеников</span>
+      <input type="number" name="max_students" min="1" step="1" value="10" />
+    </label>
+    <fieldset class="form__field form__field--wide">
+      <legend>Предметы (выберите до 3)</legend>
+      <div class="checkbox-grid">
+        {% for subject in subject_settings %}
+          <label class="checkbox">
+            <input type="checkbox" name="subject_ids" value="{{ subject.id }}" />
+            <span>{{ subject.name }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <small class="muted">Учитель сможет вести только указанные направления. Можно выбрать от одного до трёх предметов.</small>
+    </fieldset>
+    <div class="form__actions">
+      <button type="submit" class="btn btn--primary">Создать преподавателя</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Аккаунты преподавателей</h2>
+    <span class="chip">{{ teacher_stats|length }} аккаунтов</span>
+  </div>
+  {% if teacher_stats %}
+    <div class="teacher-grid">
+      {% for entry in teacher_stats %}
+        <article class="teacher-card">
+          <header class="teacher-card__header">
+            <div>
+              <h3>{{ entry.display_name }}</h3>
+              <p class="muted">Логин: {{ entry.teacher.username }}</p>
+            </div>
+            <span class="chip chip--light">{{ entry.student_count }} / {{ entry.limit }} учеников</span>
+          </header>
+          {% if entry.subjects %}
+            <ul class="chip-list">
+              {% for subject in entry.subjects %}
+                <li class="chip-list__item">
+                  <span class="chip chip--mini">{{ subject.name }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          <p class="muted">Создан {{ entry.teacher.created_at.strftime('%d.%m.%Y') }}</p>
+          <form method="post" class="form form--stack">
+            <input type="hidden" name="action" value="update" />
+            <input type="hidden" name="teacher_id" value="{{ entry.teacher.id }}" />
+            <label class="form__field">
+              <span>Фамилия</span>
+              <input type="text" name="last_name" value="{{ entry.teacher.last_name or '' }}" required />
+            </label>
+            <label class="form__field">
+              <span>Имя</span>
+              <input type="text" name="first_name" value="{{ entry.teacher.first_name or '' }}" required />
+            </label>
+            <label class="form__field">
+              <span>Отчество (при наличии)</span>
+              <input type="text" name="patronymic" value="{{ entry.teacher.patronymic or '' }}" />
+            </label>
+            <label class="form__field">
+              <span>Новый лимит учеников</span>
+              <input type="number" name="max_students" min="1" step="1" value="{{ entry.limit }}" />
+            </label>
+            <label class="form__field">
+              <span>Сбросить пароль</span>
+              <input type="password" name="password" placeholder="Оставьте пустым, чтобы не менять" />
+            </label>
+            <fieldset class="form__field form__field--wide">
+              <legend>Предметы преподавателя</legend>
+              <div class="checkbox-grid">
+                {% for subject in subject_settings %}
+                  <label class="checkbox">
+                    <input
+                      type="checkbox"
+                      name="subject_ids"
+                      value="{{ subject.id }}"
+                      {% if subject in entry.subjects %}checked{% endif %}
+                    />
+                    <span>{{ subject.name }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+              <small class="muted">Оставьте от одного до трёх предметов — преподаватель будет работать только с ними.</small>
+            </fieldset>
+            <div class="form__actions">
+              <button type="submit" class="btn btn--primary">Сохранить</button>
+            </div>
+          </form>
+          <form method="post" class="inline-form" onsubmit="return confirm('Удалить преподавателя? Ученики останутся без назначения.');">
+            <input type="hidden" name="action" value="delete" />
+            <input type="hidden" name="teacher_id" value="{{ entry.teacher.id }}" />
+            <button type="submit" class="btn btn--ghost">Удалить</button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Ещё не создано ни одного преподавателя.</p>
+  {% endif %}
+</section>
+{% endblock %}

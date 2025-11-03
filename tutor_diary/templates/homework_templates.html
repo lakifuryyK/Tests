@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Домашние задания — ОбразОн{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Домашние задания</h1>
+    <p class="muted">
+      Создавайте шаблоны, заранее подготавливайте материалы и прикрепляйте задания к ученикам или
+      конкретным занятиям в один клик.
+    </p>
+  </div>
+  <div class="hero__meta">
+    <span class="chip">Шаблонов: {{ templates|length }}</span>
+    <span class="chip">Ученики: {{ students|length }}</span>
+  </div>
+</section>
+
+<section class="panel panel--form">
+  <div>
+    <h2>Новый шаблон</h2>
+    <p class="muted">
+      Укажите название и краткое описание. Вложения и назначение можно добавить после создания.
+    </p>
+  </div>
+  <form method="post" class="form form--grid">
+    <input type="hidden" name="action" value="create_template" />
+    <label class="form__field">
+      <span>Название</span>
+      <input type="text" name="title" placeholder="Например, Анализ текста" required />
+    </label>
+    <label class="form__field form__field--wide">
+      <span>Описание</span>
+      <textarea name="description" rows="3" placeholder="Цель, основные задания, формат сдачи"></textarea>
+    </label>
+    <div class="form__actions">
+      <button type="submit" class="btn btn--primary">Создать шаблон</button>
+    </div>
+  </form>
+</section>
+
+{% if templates %}
+  <section class="template-grid">
+    {% for template in templates %}
+      <article class="panel panel--template">
+        <header class="panel__header">
+          <div>
+            <h2>{{ template.title }}</h2>
+            <p class="panel__meta">
+              Создано {{ template.created_at.strftime('%d.%m.%Y') }} · Прикреплений: {{ template.assignments|length }}
+            </p>
+          </div>
+          <form method="post" class="inline-form" onsubmit="return confirm('Удалить шаблон?');">
+            <input type="hidden" name="action" value="delete_template" />
+            <input type="hidden" name="template_id" value="{{ template.id }}" />
+            <button type="submit" class="btn btn--ghost">Удалить</button>
+          </form>
+        </header>
+        {% if template.description %}
+          <p class="panel__text">{{ template.description }}</p>
+        {% endif %}
+
+        <section class="template-section">
+          <h3>Вложения</h3>
+          {% if template.attachments %}
+            <ul class="attachment-list attachment-list--compact">
+              {% for attachment in template.attachments %}
+                <li class="attachment-list__item attachment-list__item--manage">
+                  <a
+                    href="{{ attachment.url if attachment.url and attachment.url.startswith('http') else url_for('static', filename=attachment.url) }}"
+                    class="attachment"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    <span class="attachment__icon">📎</span>
+                    <span class="attachment__title">{{ attachment.title }}</span>
+                  </a>
+                  <form method="post" class="attachment-remove-form">
+                    <input type="hidden" name="action" value="remove_template_attachment" />
+                    <input type="hidden" name="attachment_id" value="{{ attachment.id }}" />
+                    <button type="submit" class="btn btn--ghost btn--mini" title="Удалить вложение">Удалить</button>
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">Вложений пока нет.</p>
+          {% endif %}
+          <form method="post" enctype="multipart/form-data" class="form form--inline template-attachment-form">
+            <input type="hidden" name="action" value="add_template_attachment" />
+            <input type="hidden" name="template_id" value="{{ template.id }}" />
+            <label class="form__field">
+              <span>Название</span>
+              <input type="text" name="attachment_title" placeholder="Файл или ссылка" />
+            </label>
+            <label class="form__field">
+              <span>Ссылка</span>
+              <input type="url" name="attachment_url" placeholder="https://..." />
+            </label>
+            <label class="form__field form__upload">
+              <span>Файл</span>
+              <input type="file" name="attachment_file" />
+            </label>
+            <div class="form__actions">
+              <button type="submit" class="btn btn--ghost">Добавить</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="template-section">
+          <h3>Прикрепить задание</h3>
+          <form method="post" class="form form--grid template-assign-form">
+            <input type="hidden" name="action" value="assign_template" />
+            <input type="hidden" name="template_id" value="{{ template.id }}" />
+            <label class="form__field">
+              <span>Ученик</span>
+              <select name="student_id">
+                <option value="">Выберите ученика</option>
+                {% for student in students %}
+                  <option value="{{ student.id }}">{{ student.full_name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="form__field">
+              <span>Конкретное занятие</span>
+              <select name="session_id">
+                <option value="">Без привязки</option>
+                {% for lesson in upcoming_sessions %}
+                  <option value="{{ lesson.id }}">
+                    {{ lesson.date.strftime('%d.%m %H:%M') }} · {{ lesson.student.full_name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </label>
+            <label class="form__field">
+              <span>Срок сдачи</span>
+              <input type="date" name="due_date" />
+            </label>
+            <div class="form__actions">
+              <button type="submit" class="btn btn--primary">Прикрепить</button>
+            </div>
+          </form>
+          <p class="muted template-hint">
+            Укажите ученика или занятие. Если выбрано занятие, ученик определяется автоматически.
+          </p>
+        </section>
+
+        {% set recent_assignments = template.assignments | sort(attribute='created_at', reverse=true) | list %}
+        {% if recent_assignments %}
+          <section class="template-section">
+            <h3>Недавние назначения</h3>
+            <ul class="template-assignment-list">
+              {% for assignment in recent_assignments[:5] %}
+                <li class="template-assignment-list__item">
+                  <div class="template-assignment-list__title">
+                    {{ assignment.student.full_name }}
+                    {% if assignment.session %}
+                      · урок {{ assignment.session.date.strftime('%d.%m') }}
+                    {% endif %}
+                  </div>
+                  <div class="template-assignment-list__meta">
+                    <span class="lesson-homework__status lesson-homework__status--{{ assignment.status }}">
+                      {{ assignment_status_labels.get(assignment.status, assignment.status | replace('_', ' ') | title) }}
+                    </span>
+                    <span class="lesson-homework__grade">Оценка: {{ assignment.grade or '—' }}</span>
+                    {% if assignment.due_date %}
+                      <span class="lesson-homework__due">Срок: {{ assignment.due_date.strftime('%d.%m.%Y') }}</span>
+                    {% endif %}
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </section>
+{% else %}
+  <section class="panel">
+    <p class="muted">Шаблонов пока нет — создайте первый, чтобы ускорить выдачу заданий.</p>
+  </section>
+{% endif %}
+{% endblock %}

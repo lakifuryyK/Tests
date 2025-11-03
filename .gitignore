@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+instance/
+*.sqlite3
+*.db
+.DS_Store
+.vscode/
+.idea/
+.venv/
+tutor_diary/static/uploads/

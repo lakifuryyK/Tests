@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}Занятия — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Запланировать занятие</h2>
+    <p class="muted">
+      Создайте урок, чтобы он появился в календарях ученика и в вашем списке ближайших занятий.
+    </p>
+  </div>
+  {% if teacher_options %}
+    <form method="get" class="filter-bar">
+      <label>
+        <span class="sr-only">Преподаватель</span>
+        <select name="teacher_id" onchange="this.form.submit()">
+          <option value="">Все преподаватели</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+              {{ teacher.display_name }} · {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if subject_focus %}
+        <input type="hidden" name="subject" value="{{ subject_focus }}" />
+      {% endif %}
+    </form>
+  {% endif %}
+  {% if students %}
+    <form method="post" class="form form--grid">
+      <label class="form__field">
+        <span>Ученик</span>
+        <select name="student_id" required>
+          <option value="" disabled {% if not subject_focus %}selected{% endif %}>Выберите ученика</option>
+          {% for student in students %}
+            {% set is_focus = subject_focus and student.subject and subject_focus == student.subject %}
+            <option
+              value="{{ student.id }}"
+              data-duration="{{ subject_defaults.get(student.subject, 60) }}"
+              data-subject="{{ student.subject }}"
+              {% if is_focus %}selected{% endif %}
+            >
+              {{ student.full_name }}{% if student.subject %} — {{ student.subject }}{% endif %}
+              {% if student.teacher %} ({{ student.teacher.display_name }}){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Дата</span>
+        <input type="date" name="date" required />
+      </label>
+      <label class="form__field">
+        <span>Время</span>
+        <input type="time" name="start_time" required />
+      </label>
+      <label class="form__field">
+        <span>Длительность (мин)</span>
+        <input
+          type="number"
+          name="duration_minutes"
+          min="15"
+          step="15"
+          value="60"
+          required
+          data-field="duration"
+        />
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Тема занятия</span>
+        <input
+          type="text"
+          name="topic"
+          placeholder="Например, Подготовка к ЕГЭ"
+          required
+          data-field="topic"
+        />
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Домашнее задание</span>
+        <textarea name="homework" rows="3" placeholder="Опишите задание (необязательно)"></textarea>
+      </label>
+      <label class="form__field form__field--wide">
+        <span>Ссылка на урок</span>
+        <input
+          type="url"
+          name="join_link"
+          placeholder="https://videoplatform.example/meeting"
+          inputmode="url"
+        />
+      </label>
+      <label class="form__field">
+        <span>Стоимость занятия (₽)</span>
+        <input type="number" step="0.01" min="0" name="fee_amount" placeholder="Например, 1500" />
+      </label>
+      <label class="form__field">
+        <span>Статус оплаты</span>
+        <select name="payment_status">
+          {% for key, label in payment_status_choices.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Статус</span>
+        <select name="status">
+          <option value="scheduled">Запланировано</option>
+          <option value="completed">Проведено</option>
+          <option value="cancelled">Отменено</option>
+        </select>
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Добавить занятие</button>
+      </div>
+    </form>
+  {% else %}
+    <p class="muted">Чтобы запланировать занятие, добавьте хотя бы одного ученика.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>История занятий</h2>
+    <span class="chip">{{ sessions|length }} записей</span>
+  </div>
+  <form method="get" class="history-filters">
+    {% if teacher_options %}
+      <label class="history-filters__field">
+        <span class="history-filters__label">Преподаватель</span>
+        <select name="teacher_id">
+          <option value="">Все преподаватели</option>
+          {% for teacher in teacher_options %}
+            <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+              {{ teacher.display_name }} · {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
+    <label class="history-filters__field">
+      <span class="history-filters__label">Сортировка</span>
+      <select name="sort">
+        <option value="date" {% if history_sort != 'student' %}selected{% endif %}>По дате (сначала новые)</option>
+        <option value="student" {% if history_sort == 'student' %}selected{% endif %}>По ученику (А–Я)</option>
+      </select>
+    </label>
+    <label class="history-filters__field">
+      <span class="history-filters__label">Период</span>
+      <select name="period">
+        <option value="month" {% if history_period == 'month' %}selected{% endif %}>За месяц</option>
+        <option value="three_months" {% if history_period == 'three_months' %}selected{% endif %}>За 3 месяца</option>
+        <option value="six_months" {% if history_period == 'six_months' %}selected{% endif %}>За полгода</option>
+        <option value="year" {% if history_period == 'year' %}selected{% endif %}>За год</option>
+        <option value="all" {% if history_period == 'all' %}selected{% endif %}>За всё время</option>
+        <option value="custom" {% if history_period == 'custom' %}selected{% endif %}>Выбрать диапазон</option>
+      </select>
+    </label>
+    <div class="history-filters__custom">
+      <label class="history-filters__field">
+        <span class="history-filters__label">Начало</span>
+        <input type="date" name="start" value="{{ custom_start or '' }}" {% if history_period != 'custom' %}disabled{% endif %} />
+      </label>
+      <label class="history-filters__field">
+        <span class="history-filters__label">Конец</span>
+        <input type="date" name="end" value="{{ custom_end or '' }}" {% if history_period != 'custom' %}disabled{% endif %} />
+      </label>
+    </div>
+    {% if subject_focus %}
+      <input type="hidden" name="subject" value="{{ subject_focus }}" />
+    {% endif %}
+    <button type="submit" class="btn btn--ghost">Применить</button>
+  </form>
+  {% if sessions %}
+    <div class="table-wrapper">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            <th>Дата и время</th>
+            <th>Ученик</th>
+            <th>Тема</th>
+            <th>Домашнее задание</th>
+            <th>Статус ДЗ</th>
+            <th>Длительность</th>
+            <th>Оплата</th>
+            <th>Ссылка</th>
+            <th>Статус занятия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for session in sessions %}
+            <tr>
+              <td>{{ session.date.strftime('%d.%m.%Y') }} {{ session.start_time.strftime('%H:%M') }}</td>
+              <td>{{ session.student.full_name }}</td>
+              <td>{{ session.topic }}</td>
+              <td>{{ session.homework or '—' }}</td>
+              <td>
+                {% set lesson_assignments = session_assignments.get(session.id, []) %}
+                {% if lesson_assignments %}
+                  <ul class="lesson-homework">
+                    {% for assignment in lesson_assignments %}
+                      <li class="lesson-homework__item">
+                        <span class="lesson-homework__title">{{ assignment.title }}</span>
+                        <span class="lesson-homework__status lesson-homework__status--{{ assignment.status }}">
+                          {{ assignment_status_labels.get(assignment.status, assignment.status | replace('_', ' ') | title) }}
+                        </span>
+                        <span class="lesson-homework__grade">Оценка: {{ assignment.grade or '—' }}</span>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="muted">Нет данных</span>
+                {% endif %}
+              </td>
+              <td>{{ session.duration_minutes }} мин</td>
+              <td>
+                <form method="post" class="session-payment-form">
+                  <input type="hidden" name="action" value="update_finance" />
+                  <input type="hidden" name="session_id" value="{{ session.id }}" />
+                  <div class="session-payment-form__row">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      name="fee_amount"
+                      value="{{ session.fee_amount if session.fee_amount is not none else '' }}"
+                      placeholder="0.00"
+                    />
+                    <select name="payment_status">
+                      {% for key, label in payment_status_choices.items() %}
+                        <option value="{{ key }}" {% if session.payment_status == key %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn--ghost btn--mini">Сохранить</button>
+                  </div>
+                  {% if session.payment %}
+                    <p class="session-payment-form__meta">
+                      Оплата {{ session.payment.paid_on.strftime('%d.%m.%Y') }} ·
+                      {{ '{:,.2f}'.format(session.payment.amount).replace(',', ' ') }} ₽
+                    </p>
+                  {% endif %}
+                </form>
+              </td>
+              <td>
+                <form method="post" class="session-link-form">
+                  <input type="hidden" name="action" value="update_join_link" />
+                  <input type="hidden" name="session_id" value="{{ session.id }}" />
+                  <div class="session-link-form__row">
+                    <input
+                      type="url"
+                      name="join_link"
+                      value="{{ session.join_link or '' }}"
+                      placeholder="https://..."
+                      inputmode="url"
+                    />
+                    <button type="submit" class="btn btn--ghost btn--mini">Сохранить</button>
+                  </div>
+                  {% if session.join_link %}
+                    <p class="session-link-form__meta">
+                      <a href="{{ session.join_link }}" class="link" target="_blank" rel="noopener">Открыть</a>
+                    </p>
+                  {% endif %}
+                </form>
+              </td>
+              <td><span class="status status--{{ session.status }}">{{ session.status|title }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Здесь появятся занятия после создания.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const periodSelect = document.querySelector('.history-filters select[name="period"]');
+      const customDateInputs = document.querySelectorAll('.history-filters__custom input[type="date"]');
+
+      const toggleCustomDates = () => {
+        const useCustom = periodSelect && periodSelect.value === 'custom';
+        customDateInputs.forEach((input) => {
+          input.disabled = !useCustom;
+          const wrapper = input.closest('.history-filters__field');
+          if (wrapper) {
+            wrapper.classList.toggle('history-filters__field--disabled', !useCustom);
+          }
+        });
+      };
+
+      if (periodSelect && customDateInputs.length) {
+        toggleCustomDates();
+        periodSelect.addEventListener('change', toggleCustomDates);
+      }
+
+      const studentSelect = document.querySelector('select[name="student_id"]');
+      const durationInput = document.querySelector('input[data-field="duration"]');
+      const topicInput = document.querySelector('input[data-field="topic"]');
+      if (!studentSelect) return;
+
+      const markTouched = (element) => {
+        if (!element) return;
+        element.addEventListener('input', () => {
+          element.dataset.touched = 'true';
+        });
+      };
+
+      markTouched(durationInput);
+      markTouched(topicInput);
+
+      studentSelect.addEventListener('change', () => {
+        const option = studentSelect.selectedOptions[0];
+        if (!option) return;
+        const duration = option.getAttribute('data-duration');
+        if (duration && durationInput && !durationInput.dataset.touched) {
+          durationInput.value = duration;
+        }
+        const subject = option.getAttribute('data-subject');
+        if (subject && topicInput && !topicInput.dataset.touched) {
+          topicInput.placeholder = `Например, ${subject}: новая тема`;
+        }
+      });
+
+      if (studentSelect.value) {
+        studentSelect.dispatchEvent(new Event('change'));
+      }
+    });
+  </script>
+{% endblock %}

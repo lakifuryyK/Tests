@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Ученики — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Добавить ученика</h2>
+    <p class="muted">
+      {% if is_admin %}
+        Вы можете назначить ученика любому преподавателю. Ограничение по количеству учеников для
+        каждого преподавателя устанавливается в административном меню.
+      {% else %}
+        Максимум учеников: {{ student_limit }}. Осталось мест: {{ limit_remaining }}.
+        Передайте логин и пароль ученику, чтобы он получил доступ к личному кабинету.
+        Предмет выбирается из трёх направлений, закреплённых за вашим аккаунтом администратором.
+      {% endif %}
+    </p>
+  </div>
+  <form method="post" class="form form--grid">
+    {% if is_admin %}
+      <input type="hidden" name="action" value="create" />
+    {% endif %}
+    {% if is_admin %}
+      <label class="form__field">
+        <span>Преподаватель</span>
+        <select name="assigned_teacher_id" required>
+          <option value="">Выберите преподавателя</option>
+          {% for teacher in teacher_options %}
+          <option value="{{ teacher.id }}">{{ teacher.display_name }} · {{ teacher.username }} · лимит {{ teacher.max_students }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
+    <label class="form__field">
+      <span>ФИО</span>
+      <input type="text" name="full_name" placeholder="Иванов Иван" required />
+    </label>
+    <label class="form__field">
+      <span>Логин ученика</span>
+      <input type="text" name="username" placeholder="ivanov" required />
+    </label>
+    <label class="form__field">
+      <span>Пароль</span>
+      <input type="password" name="password" placeholder="Придумайте пароль" required />
+    </label>
+    <label class="form__field">
+      <span>Предмет</span>
+      <select name="subject_choice">
+        <option value="">Выберите из списка</option>
+        {% for subject in subject_settings %}
+          <option value="{{ subject.name }}">{{ subject.name }} · {{ subject.default_duration }} мин.</option>
+        {% endfor %}
+        {% if is_admin %}
+          <option value="__custom__">Свой предмет</option>
+        {% endif %}
+      </select>
+    </label>
+    {% if is_admin %}
+      <label class="form__field">
+        <span>Собственный предмет</span>
+        <input type="text" name="subject_custom" placeholder="Например, Олимпиадная физика" />
+        <small class="muted">Будет сохранён, если выбрать соответствующее значение.</small>
+      </label>
+    {% endif %}
+    <label class="form__field">
+      <span>Контакты</span>
+      <input type="text" name="contact_info" placeholder="Телефон или email" />
+    </label>
+    <label class="form__field form__field--wide">
+      <span>Заметки</span>
+      <textarea name="notes" rows="3" placeholder="Например, цель обучения"></textarea>
+    </label>
+    <div class="form__actions">
+      <button type="submit" class="btn btn--primary">Сохранить</button>
+      {% if is_admin %}
+        <a class="link" href="{{ url_for('diary.manage_subjects') }}">Управлять предметами</a>
+      {% endif %}
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Ученики</h2>
+    {% if max_students %}
+      <span class="chip">{{ current_student_total }} из {{ max_students }}</span>
+    {% else %}
+      <span class="chip">{{ current_student_total }}</span>
+    {% endif %}
+  </div>
+    {% if is_admin and teacher_options %}
+      <form method="get" class="filter-bar">
+        <label>
+          <span class="sr-only">Фильтр по преподавателю</span>
+          <select name="teacher_id" onchange="this.form.submit()">
+            <option value="">Все преподаватели</option>
+            {% for teacher in teacher_options %}
+              <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>
+                {{ teacher.display_name }} · {{ teacher.username }} ({{ teacher.students|length }} / {{ teacher.max_students }})
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+      </form>
+    {% endif %}
+    {% if students %}
+    <div class="student-grid">
+      {% for student in students %}
+        <article class="student-card">
+          <header class="student-card__header">
+            <h3>{{ student.full_name }}</h3>
+            {% set color = subject_palette.get(student.subject) %}
+            <span
+              class="student-card__subject"
+              style="--subject-color: {{ color or '#94a3b8' }}"
+            >
+              {{ student.subject or 'Без предмета' }}
+              {% if subject_defaults.get(student.subject) %}
+                · {{ subject_defaults.get(student.subject) }} мин.
+              {% endif %}
+            </span>
+          </header>
+          <dl class="student-card__meta">
+            <div>
+              <dt>Логин</dt>
+              <dd>{{ student.username }}</dd>
+            </div>
+            {% if is_admin %}
+              <div>
+                <dt>Преподаватель</dt>
+                <dd>
+                  {% if student.teacher %}
+                    {{ student.teacher.display_name }} · {{ student.teacher.username }}
+                  {% else %}
+                    Не назначен
+                  {% endif %}
+                </dd>
+              </div>
+            {% endif %}
+            <div>
+              <dt>Контакты</dt>
+              <dd>{{ student.contact_info or '—' }}</dd>
+            </div>
+            <div>
+              <dt>Добавлен</dt>
+              <dd>{{ student.created_at.strftime('%d.%m.%Y') }}</dd>
+            </div>
+          </dl>
+          {% if student.notes %}
+            <p class="student-card__notes">{{ student.notes }}</p>
+          {% endif %}
+          {% if is_admin %}
+            <div class="student-card__actions">
+              <form method="post" class="student-card__action">
+                <input type="hidden" name="action" value="reassign" />
+                <input type="hidden" name="student_id" value="{{ student.id }}" />
+                <label class="sr-only" for="reassign-{{ student.id }}">Новый преподаватель</label>
+                <select name="new_teacher_id" id="reassign-{{ student.id }}">
+                  <option value="">Выберите преподавателя</option>
+                    {% for option in teacher_options %}
+                      <option value="{{ option.id }}" {% if student.teacher and student.teacher.id == option.id %}selected{% endif %}>
+                        {{ option.display_name }} · {{ option.username }} · лимит {{ option.max_students }}
+                      </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn--ghost btn--mini">Переназначить</button>
+              </form>
+              <form method="post" class="student-card__action">
+                <input type="hidden" name="action" value="delete" />
+                <input type="hidden" name="student_id" value="{{ student.id }}" />
+                <button type="submit" class="btn btn--danger btn--mini">Удалить</button>
+              </form>
+            </div>
+          {% else %}
+            <footer class="student-card__footer">
+              <a class="btn btn--ghost" href="{{ url_for('diary.student_detail', student_id=student.id) }}">
+                Управлять
+              </a>
+            </footer>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>Добавьте первого ученика, чтобы начать работу.</p>
+  {% endif %}
+</section>
+{% endblock %}

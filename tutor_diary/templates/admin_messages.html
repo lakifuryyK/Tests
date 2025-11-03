@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Коммуникации — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Рассылка преподавателям</h2>
+    <p class="muted">
+      Отправьте объявление всем преподавателям, одному человеку или группе по предмету. Срок поможет выделить срочные задачи.
+    </p>
+  </div>
+  <div class="form-split">
+    <form method="post" class="form form--stack">
+      <input type="hidden" name="action" value="broadcast_teachers" />
+      <label class="form__field">
+        <span>Тема</span>
+        <input type="text" name="subject" placeholder="Например, Обновление расписания" required />
+      </label>
+      <label class="form__field">
+        <span>Сообщение</span>
+        <textarea name="body" rows="4" placeholder="Опишите задачу или объявление" required></textarea>
+      </label>
+      <label class="form__field">
+        <span>Срок (необязательно)</span>
+        <input type="date" name="due_date" />
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Разослать всем преподавателям</button>
+      </div>
+    </form>
+    <form method="post" class="form form--stack">
+      <input type="hidden" name="action" value="direct_teacher" />
+      <label class="form__field">
+        <span>Преподаватель</span>
+        <select name="teacher_id" required>
+          <option value="">Выберите преподавателя</option>
+          {% for teacher in teachers %}
+            <option value="{{ teacher.id }}">{{ teacher.display_name }} · {{ teacher.username }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Тема</span>
+        <input type="text" name="subject" placeholder="Личное сообщение" required />
+      </label>
+      <label class="form__field">
+        <span>Сообщение</span>
+        <textarea name="body" rows="4" placeholder="Что нужно обсудить" required></textarea>
+      </label>
+      <label class="form__field">
+        <span>Срок (необязательно)</span>
+        <input type="date" name="due_date" />
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--ghost">Отправить персонально</button>
+      </div>
+    </form>
+    <form method="post" class="form form--stack">
+      <input type="hidden" name="action" value="subject_group" />
+      <label class="form__field">
+        <span>Предмет</span>
+        <select name="subject_id" required>
+          <option value="">Выберите предмет</option>
+          {% for subject in subjects %}
+            <option value="{{ subject.id }}">{{ subject.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Тема</span>
+        <input type="text" name="subject" placeholder="Команда по предмету" required />
+      </label>
+      <label class="form__field">
+        <span>Сообщение</span>
+        <textarea name="body" rows="4" placeholder="Введите текст рассылки" required></textarea>
+      </label>
+      <label class="form__field">
+        <span>Срок (необязательно)</span>
+        <input type="date" name="due_date" />
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--ghost">Отправить по предмету</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="panel panel--form">
+  <div>
+    <h2>Коммуникация с учениками</h2>
+    <p class="muted">Сообщите важную новость всем или конкретному ученику, чтобы он передал информацию семье.</p>
+  </div>
+  <div class="form-split">
+    <form method="post" class="form form--stack">
+      <input type="hidden" name="action" value="broadcast_students" />
+      <label class="form__field">
+        <span>Тема</span>
+        <input type="text" name="subject" placeholder="Объявление для учеников" required />
+      </label>
+      <label class="form__field">
+        <span>Сообщение</span>
+        <textarea name="body" rows="4" placeholder="Текст объявления" required></textarea>
+      </label>
+      <label class="form__field">
+        <span>Срок (необязательно)</span>
+        <input type="date" name="due_date" />
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Разослать ученикам</button>
+      </div>
+    </form>
+    <form method="post" class="form form--stack">
+      <input type="hidden" name="action" value="direct_student" />
+      <label class="form__field">
+        <span>Ученик</span>
+        <select name="student_id" required>
+          <option value="">Выберите ученика</option>
+          {% for student in students %}
+            <option value="{{ student.id }}">{{ student.full_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Тема</span>
+        <input type="text" name="subject" placeholder="Личное сообщение" required />
+      </label>
+      <label class="form__field">
+        <span>Сообщение</span>
+        <textarea name="body" rows="4" placeholder="Что нужно сообщить" required></textarea>
+      </label>
+      <label class="form__field">
+        <span>Срок (необязательно)</span>
+        <input type="date" name="due_date" />
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--ghost">Отправить ученику</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>История сообщений</h2>
+    <span class="chip">{{ communications|length }} записей</span>
+  </div>
+  {% if communications %}
+    <div class="message-grid">
+      {% for entry in communications %}
+        <article class="message-card">
+          <header class="message-card__header">
+            <h3>{{ entry.subject }}</h3>
+            <span class="message-card__meta">{{ entry.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+          </header>
+          <p class="message-card__body">{{ entry.body }}</p>
+          <footer class="message-card__footer">
+            <span class="chip chip--mini">
+              {% if entry.target_role == 'teacher' %}
+                {% if entry.is_global %}
+                  Всем преподавателям
+                {% else %}
+                  Преподаватель: {{ entry.teacher_recipient.username if entry.teacher_recipient else '—' }}
+                {% endif %}
+              {% else %}
+                {% if entry.is_global %}
+                  Всем ученикам
+                {% else %}
+                  Ученик: {{ entry.student_recipient.full_name if entry.student_recipient else '—' }}
+                {% endif %}
+              {% endif %}
+            </span>
+            {% if entry.due_date %}
+              <span class="chip chip--deadline">Срок: {{ entry.due_date.strftime('%d.%m') }}</span>
+            {% endif %}
+          </footer>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Пока нет отправленных сообщений.</p>
+  {% endif %}
+</section>
+{% endblock %}

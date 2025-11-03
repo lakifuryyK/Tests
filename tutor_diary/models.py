@@ -1,0 +1,295 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from . import db
+
+
+class Admin(db.Model):
+    __tablename__ = "admins"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    teachers = db.relationship(
+        "Teacher", backref="owner", lazy=True, cascade="all, delete-orphan"
+    )
+    communications = db.relationship(
+        "AdminCommunication", backref="author", lazy=True, cascade="all, delete-orphan"
+    )
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
+
+
+class SubjectSetting(db.Model):
+    __tablename__ = "subject_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    color = db.Column(db.String(20), nullable=False, default="#6366f1")
+    default_duration = db.Column(db.Integer, nullable=False, default=60)
+    description = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    library_items = db.relationship(
+        "LibraryMaterial", backref="subject_setting", lazy=True, cascade="all, delete-orphan"
+    )
+
+
+teacher_subject_links = db.Table(
+    "teacher_subject_links",
+    db.Column("teacher_id", db.Integer, db.ForeignKey("teachers.id"), primary_key=True),
+    db.Column("subject_id", db.Integer, db.ForeignKey("subject_settings.id"), primary_key=True),
+    db.Column("created_at", db.DateTime, default=datetime.utcnow, nullable=False),
+)
+
+
+class Student(db.Model):
+    __tablename__ = "students"
+
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=True)
+    full_name = db.Column(db.String(120), nullable=False)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    subject = db.Column(db.String(120), nullable=True)
+    email = db.Column(db.String(120), nullable=True)
+    phone = db.Column(db.String(50), nullable=True)
+    contact_info = db.Column(db.String(255), nullable=True)
+    avatar_path = db.Column(db.String(255), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    sessions = db.relationship("Session", backref="student", lazy=True, cascade="all, delete-orphan")
+    payments = db.relationship("Payment", backref="student", lazy=True, cascade="all, delete-orphan")
+    assignments = db.relationship(
+        "Assignment", backref="student", lazy=True, cascade="all, delete-orphan"
+    )
+    materials = db.relationship(
+        "Material", backref="student", lazy=True, cascade="all, delete-orphan"
+    )
+    messages = db.relationship(
+        "ChatMessage", backref="student", lazy=True, cascade="all, delete-orphan"
+    )
+    admin_messages = db.relationship(
+        "AdminCommunication",
+        primaryjoin="AdminCommunication.student_id == Student.id",
+        lazy="dynamic",
+        backref=db.backref("student_recipient", lazy=True),
+    )
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
+
+
+class Session(db.Model):
+    __tablename__ = "sessions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+    duration_minutes = db.Column(db.Integer, nullable=False)
+    topic = db.Column(db.String(255), nullable=False)
+    homework = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(50), default="scheduled", nullable=False)
+    fee_amount = db.Column(db.Numeric(10, 2), nullable=True)
+    payment_status = db.Column(db.String(20), nullable=False, default="unpaid")
+    payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True)
+    join_link = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    assignments = db.relationship("Assignment", backref="session", lazy=True)
+
+
+class Payment(db.Model):
+    __tablename__ = "payments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    paid_on = db.Column(db.Date, default=datetime.utcnow, nullable=False)
+    method = db.Column(db.String(50), nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    sessions = db.relationship("Session", backref="payment", lazy=True)
+
+
+class Assignment(db.Model):
+    __tablename__ = "assignments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    session_id = db.Column(db.Integer, db.ForeignKey("sessions.id"), nullable=True)
+    template_id = db.Column(
+        db.Integer, db.ForeignKey("homework_templates.id"), nullable=True
+    )
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(50), default="assigned", nullable=False)
+    grade = db.Column(db.String(50), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    attachments = db.relationship(
+        "AssignmentAttachment",
+        backref="assignment",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+
+class AssignmentAttachment(db.Model):
+    __tablename__ = "assignment_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(
+        db.Integer, db.ForeignKey("assignments.id"), nullable=False
+    )
+    title = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Material(db.Model):
+    __tablename__ = "materials"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ChatMessage(db.Model):
+    __tablename__ = "chat_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
+    sender = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AdminCommunication(db.Model):
+    __tablename__ = "admin_communications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=False)
+    target_role = db.Column(db.String(20), nullable=False)
+    subject = db.Column(db.String(255), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    is_global = db.Column(db.Boolean, default=False, nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Teacher(db.Model):
+    __tablename__ = "teachers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey("admins.id"), nullable=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    last_name = db.Column(db.String(120), nullable=True)
+    first_name = db.Column(db.String(80), nullable=True)
+    patronymic = db.Column(db.String(120), nullable=True)
+    max_students = db.Column(db.Integer, nullable=False, default=10)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    students = db.relationship("Student", backref="teacher", lazy=True)
+    subjects = db.relationship(
+        "SubjectSetting",
+        secondary=teacher_subject_links,
+        lazy="joined",
+        backref=db.backref("teachers", lazy="dynamic"),
+    )
+    homework_templates = db.relationship(
+        "HomeworkTemplate",
+        backref="teacher",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+    communications = db.relationship(
+        "AdminCommunication",
+        primaryjoin="AdminCommunication.teacher_id == Teacher.id",
+        lazy="dynamic",
+        backref=db.backref("teacher_recipient", lazy=True),
+    )
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
+
+    @property
+    def full_name(self) -> str:
+        parts = [
+            part.strip()
+            for part in (self.last_name, self.first_name, self.patronymic)
+            if part and part.strip()
+        ]
+        return " ".join(parts)
+
+    @property
+    def display_name(self) -> str:
+        name = self.full_name
+        return name if name else self.username
+
+
+class LibraryMaterial(db.Model):
+    __tablename__ = "library_materials"
+
+    id = db.Column(db.Integer, primary_key=True)
+    subject_id = db.Column(db.Integer, db.ForeignKey("subject_settings.id"), nullable=True)
+    title = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    tags = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class HomeworkTemplate(db.Model):
+    __tablename__ = "homework_templates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    assignments = db.relationship("Assignment", backref="template", lazy=True)
+    attachments = db.relationship(
+        "HomeworkTemplateAttachment",
+        backref="template",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+
+class HomeworkTemplateAttachment(db.Model):
+    __tablename__ = "homework_template_attachments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(
+        db.Integer, db.ForeignKey("homework_templates.id"), nullable=False
+    )
+    title = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

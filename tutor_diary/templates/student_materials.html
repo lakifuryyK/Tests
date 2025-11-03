@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Материалы — {{ student.full_name }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Материалы для обучения</h1>
+    <p class="muted">Здесь собраны презентации, ссылки и дополнительные ресурсы от преподавателя.</p>
+  </div>
+</section>
+<section class="panel">
+  {% if materials %}
+    <div class="materials-grid">
+      {% for material in materials %}
+        <article class="material-card">
+          <header class="material-card__header">
+            <h3>{{ material.title }}</h3>
+            <span class="chip chip--light">{{ material.created_at.strftime('%d.%m.%Y') }}</span>
+          </header>
+          {% if material.notes %}<p class="material-card__text">{{ material.notes }}</p>{% endif %}
+          {% if material.url %}
+            <a class="btn btn--primary" href="{{ material.url }}" target="_blank">Открыть</a>
+          {% else %}
+            <p class="muted">Ссылка отсутствует — уточните у преподавателя.</p>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Пока нет загруженных материалов.</p>
+  {% endif %}
+</section>
+{% if library_preview %}
+  <section class="panel panel--library-preview">
+    <div class="panel__header">
+      <h2>Рекомендации из библиотеки ОбразОн</h2>
+    </div>
+    <div class="library-grid library-grid--compact">
+      {% for item in library_preview %}
+        <article class="material-card material-card--spotlight">
+          <h3>{{ item.title }}</h3>
+          {% if item.description %}<p class="material-card__excerpt">{{ item.description }}</p>{% endif %}
+          <div class="material-card__meta">
+            {% if item.subject_setting %}
+              <span class="chip chip--accent" style="--chip-accent: {{ item.subject_setting.color }}">{{ item.subject_setting.name }}</span>
+            {% else %}
+              <span class="chip chip--light">Общий курс</span>
+            {% endif %}
+          </div>
+          {% if item.url %}
+            <a class="btn btn--ghost" href="{{ item.url }}" target="_blank" rel="noopener">Открыть</a>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

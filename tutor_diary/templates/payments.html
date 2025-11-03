@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Платежи — ОбразОн{% endblock %}
+{% block content %}
+<section class="panel panel--form">
+  <div>
+    <h2>Добавить оплату</h2>
+    <p class="muted">Отслеживайте поступления по каждому ученику и способу оплаты.</p>
+  </div>
+  {% if students %}
+    <form method="post" class="form form--grid">
+      <label class="form__field">
+        <span>Ученик</span>
+        <select name="student_id" required>
+          <option value="" disabled selected>Выберите ученика</option>
+          {% for student in students %}
+            <option value="{{ student.id }}">
+              {{ student.full_name }}{% if student.teacher %} ({{ student.teacher.display_name }}){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="form__field">
+        <span>Сумма</span>
+        <input type="number" step="0.01" min="0" name="amount" placeholder="0.00" required data-amount-input />
+      </label>
+      <label class="form__field">
+        <span>Дата оплаты</span>
+        <input type="date" name="paid_on" required />
+      </label>
+      <label class="form__field">
+        <span>Способ</span>
+        <input type="text" name="method" placeholder="Перевод, наличные" required />
+      </label>
+      <div class="form__field form__field--wide">
+        <span>Занятия к оплате</span>
+        <div class="payment-session-list" data-session-wrapper>
+          {% for student in students %}
+            <div class="payment-session-list__group" data-student-group="{{ student.id }}" hidden>
+              {% if unpaid_sessions_map.get(student.id) %}
+                {% for lesson in unpaid_sessions_map[student.id] %}
+                  <label class="payment-session-list__item">
+                    <input
+                      type="checkbox"
+                      name="session_ids"
+                      value="{{ lesson.id }}"
+                      data-fee="{{ lesson.fee_amount if lesson.fee_amount is not none else 0 }}"
+                      checked
+                    />
+                    <span>
+                      {{ lesson.date.strftime('%d.%m') }} {{ lesson.start_time.strftime('%H:%M') }} · {{ lesson.topic }}
+                      <small>
+                        {% if lesson.fee_amount %}
+                          {{ '{:,.2f}'.format(lesson.fee_amount).replace(',', ' ') }} ₽
+                        {% else %}
+                          без стоимости
+                        {% endif %}
+                      </small>
+                    </span>
+                  </label>
+                {% endfor %}
+              {% else %}
+                <p class="muted">Неоплаченных занятий нет.</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+        <small class="muted">Выберите уроки, чтобы сумма посчиталась автоматически. Можно скорректировать вручную.</small>
+      </div>
+      <label class="form__field form__field--wide">
+        <span>Комментарий</span>
+        <textarea name="notes" rows="2" placeholder="Дополнительная информация"></textarea>
+      </label>
+      <div class="form__actions">
+        <button type="submit" class="btn btn--primary">Добавить оплату</button>
+      </div>
+    </form>
+  {% else %}
+    <p class="muted">Добавьте ученика, чтобы фиксировать платежи.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>История оплат</h2>
+    <span class="chip">{{ payments|length }} операций</span>
+  </div>
+  {% if payments %}
+    <div class="table-wrapper">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Ученик</th>
+            <th>Сумма</th>
+            <th>Способ</th>
+            <th>Комментарий</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for payment in payments %}
+            <tr>
+              <td>{{ payment.paid_on.strftime('%d.%m.%Y') }}</td>
+              <td>{{ payment.student.full_name }}</td>
+              <td>{{ '{:,.2f}'.format(payment.amount).replace(',', ' ') }} ₽</td>
+              <td>{{ payment.method }}</td>
+              <td>{{ payment.notes or '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Здесь появится история оплат.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const studentSelect = document.querySelector('select[name="student_id"]');
+      const sessionWrapper = document.querySelector('[data-session-wrapper]');
+      const amountInput = document.querySelector('[data-amount-input]');
+      const outstandingTotals = {{ outstanding_totals|tojson }};
+
+      const toggleGroups = (studentId) => {
+        if (!sessionWrapper) return;
+        sessionWrapper.querySelectorAll('[data-student-group]').forEach((group) => {
+          if (group.dataset.studentGroup === String(studentId)) {
+            group.hidden = false;
+            group.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+              checkbox.checked = true;
+            });
+          } else {
+            group.hidden = true;
+          }
+        });
+      };
+
+      const recalcAmount = () => {
+        if (!sessionWrapper || !amountInput) return;
+        const activeGroup = sessionWrapper.querySelector('[data-student-group]:not([hidden])');
+        if (!activeGroup) {
+          amountInput.value = '';
+          return;
+        }
+        const total = Array.from(activeGroup.querySelectorAll('input[type="checkbox"]'))
+          .filter((input) => input.checked)
+          .reduce((sum, input) => sum + parseFloat(input.dataset.fee || '0'), 0);
+        if (total > 0) {
+          amountInput.value = total.toFixed(2);
+        }
+      };
+
+      sessionWrapper?.addEventListener('change', (event) => {
+        if (event.target instanceof HTMLInputElement && event.target.type === 'checkbox') {
+          recalcAmount();
+        }
+      });
+
+      studentSelect?.addEventListener('change', () => {
+        const studentId = studentSelect.value;
+        toggleGroups(studentId);
+        const preset = outstandingTotals[studentId];
+        if (preset && amountInput) {
+          amountInput.value = parseFloat(preset).toFixed(2);
+        } else if (amountInput) {
+          amountInput.value = '';
+        }
+        recalcAmount();
+      });
+
+      if (studentSelect?.value) {
+        toggleGroups(studentSelect.value);
+        recalcAmount();
+      }
+    });
+  </script>
+{% endblock %}

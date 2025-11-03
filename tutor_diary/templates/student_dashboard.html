@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block title %}Меню ученика — {{ student.full_name }}{% endblock %}
+{% block content %}
+{% set assigned_teacher = teacher_name or (student.teacher.display_name if student.teacher else None) %}
+<section class="student-hero">
+  <div>
+    <h1>Привет, {{ student_first_name }}!</h1>
+    <p>
+      {% if subject_profile %}
+        Ваш предмет: <strong>{{ subject_profile.name }}</strong>.
+        Рекомендуемая длительность урока — {{ subject_profile.default_duration }} минут.
+      {% elif student.subject %}
+        Ваш предмет: <strong>{{ student.subject }}</strong>.
+      {% endif %}
+      Следите за расписанием, заданиями и прогрессом в удобном формате.
+    </p>
+    <p class="student-hero__hint">
+      {% if next_session_state and next_session %}
+        Ближайший урок {{ next_session.date.strftime('%d.%m') }} — {{ next_session_state.time_hint }}.
+      {% else %}
+        Когда появится новое занятие, мы подскажем, сколько осталось до старта.
+      {% endif %}
+    </p>
+    <div class="student-hero__actions">
+      <a class="btn btn--primary" href="{{ url_for('diary.student_homework') }}">Домашние задания</a>
+      <a class="btn btn--ghost" href="{{ url_for('diary.student_chat') }}">Написать преподавателю</a>
+    </div>
+  </div>
+  <div class="student-hero__card">
+    <h3>Ближайший урок</h3>
+    {% if next_session %}
+      {% set hero_state = next_session_state or {'tone': 'upcoming', 'label': 'Не пройден', 'time_hint': 'Ждём подтверждения начала урока', 'join_available': false} %}
+      <p class="student-hero__date">
+        {{ next_session.date.strftime('%d %B') }} · {{ next_session.start_time.strftime('%H:%M') }}
+      </p>
+      {% if assigned_teacher %}
+        <p class="student-hero__teacher">Преподаватель: {{ assigned_teacher }}</p>
+      {% endif %}
+      {% if next_session.topic %}
+        <p class="student-hero__topic">Тема: {{ next_session.topic }}</p>
+      {% endif %}
+      <div class="lesson-status lesson-status--{{ hero_state.tone }}">
+        {{ hero_state.label }}
+      </div>
+      <p class="student-hero__meta">{{ hero_state.time_hint }}</p>
+      {% if next_session.homework %}
+        <p class="muted">Подготовка: {{ next_session.homework }}</p>
+      {% endif %}
+      {% if hero_state.join_available %}
+        <a
+          class="btn btn--neon"
+          href="{{ next_session.join_link }}"
+          target="_blank"
+          rel="noopener"
+        >
+          Подключиться на урок
+        </a>
+      {% endif %}
+    {% else %}
+      <p class="muted">Расписание пока свободно — ожидайте новых занятий.</p>
+    {% endif %}
+    {% if subject_profile %}
+      <div class="student-hero__subject" style="--subject-color: {{ subject_profile.color }}">
+        <span>{{ subject_profile.name }}</span>
+        {% if subject_profile.description %}
+          <p>{{ subject_profile.description }}</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel panel--calendar panel--student-calendar student-dashboard__calendar">
+  <div class="panel__header">
+    <h2>Календарь месяца</h2>
+    <div class="calendar-nav">
+      <a class="chip" href="{{ url_for('diary.student_board', month=prev_month, year=prev_year) }}">‹</a>
+      <span>{{ month_label }} {{ target_year }}</span>
+      <a class="chip" href="{{ url_for('diary.student_board', month=next_month, year=next_year) }}">›</a>
+    </div>
+  </div>
+  <div class="calendar">
+    <div class="calendar__header">Пн</div>
+    <div class="calendar__header">Вт</div>
+    <div class="calendar__header">Ср</div>
+    <div class="calendar__header">Чт</div>
+    <div class="calendar__header">Пт</div>
+    <div class="calendar__header">Сб</div>
+    <div class="calendar__header">Вс</div>
+    {% for week in calendar_month %}
+      {% for day in week %}
+        {% if day %}
+          {% set lessons = sessions_by_day.get(day, []) %}
+          <div class="calendar__cell {% if lessons %}calendar__cell--busy{% endif %}">
+            <span class="calendar__date">{{ day.day }}</span>
+            {% if lessons %}
+              <ul class="calendar__list">
+                {% for lesson in lessons %}
+                  {% set state = session_states.get(lesson.id) %}
+                  <li class="calendar__lesson calendar__lesson--{{ state.tone if state else 'upcoming' }}">
+                    <span class="calendar__lesson-time">{{ lesson.start_time.strftime('%H:%M') }}</span>
+                    <span class="calendar__lesson-topic">{{ assigned_teacher or 'Ваш преподаватель' }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="calendar__cell calendar__cell--empty"></div>
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+</section>
+
+{% if student_messages %}
+  <section class="panel panel--messages">
+    <div class="panel__header">
+      <h2>Объявления ОбразОн</h2>
+      {% if student_messages_due %}
+        <span class="chip chip--warning">Важно</span>
+      {% else %}
+        <span class="chip chip--light">Информация</span>
+      {% endif %}
+    </div>
+    <div class="message-grid">
+      {% for note in student_messages %}
+        <article class="message-card {% if note in student_messages_due %}message-card--alert{% endif %}">
+          <header class="message-card__header">
+            <h3>{{ note.subject }}</h3>
+            <span class="message-card__meta">{{ note.created_at.strftime('%d.%m %H:%M') }}</span>
+          </header>
+          <p class="message-card__body">{{ note.body }}</p>
+          {% if note.due_date %}
+            <footer class="message-card__footer">
+              <span class="chip chip--deadline">Срок: {{ note.due_date.strftime('%d.%m') }}</span>
+            </footer>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+<section class="grid grid--two student-dashboard__secondary">
+  <article class="panel panel--student-materials">
+    <div class="panel__header">
+      <h2>Материалы от преподавателя</h2>
+      <a class="chip" href="{{ url_for('diary.student_materials') }}">Все материалы</a>
+    </div>
+    {% if materials %}
+      <ul class="material-stream">
+        {% for material in materials %}
+          <li class="material-stream__item">
+            <div class="material-stream__title">{{ material.title }}</div>
+            <div class="material-stream__meta">
+              <span>{{ material.created_at.strftime('%d.%m.%Y') }}</span>
+              {% if material.url %}<span>·</span><a href="{{ material.url }}" target="_blank" rel="noopener">Открыть</a>{% endif %}
+            </div>
+            {% if material.notes %}
+              <p class="material-stream__notes">{{ material.notes }}</p>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Новых материалов пока нет — ожидайте обновлений от преподавателя.</p>
+    {% endif %}
+    <div class="panel__footer">
+      <a class="btn btn--ghost" href="{{ url_for('diary.student_materials') }}">Перейти ко всем материалам</a>
+    </div>
+  </article>
+
+  <article class="panel panel--assistant">
+    <div class="panel__header">
+      <h2>Помощник по оплатам</h2>
+      <span class="chip chip--light">Помощник</span>
+    </div>
+    <div class="assistant assistant--{{ payment_assistant.tone }}">
+      <div class="assistant__avatar">🤖</div>
+      <div class="assistant__content">
+        <h3>{{ payment_assistant.headline }}</h3>
+        <p>{{ payment_assistant.message }}</p>
+      </div>
+    </div>
+    {% if payment_assistant.suggestions %}
+      <div class="assistant-grid">
+        {% for suggestion in payment_assistant.suggestions %}
+          <div class="assistant-card assistant-card--{{ suggestion.tone or payment_assistant.tone }}">
+            <div class="assistant-card__icon">{{ suggestion.icon }}</div>
+            <div class="assistant-card__body">
+              <h4>{{ suggestion.title }}</h4>
+              <p>{{ suggestion.body }}</p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    <div class="panel__section">
+      <h3>История оплат</h3>
+      {% if payments %}
+        <ul class="stack">
+          {% for payment in payments %}
+            <li class="stack__item">
+              <div class="stack__title">{{ payment.paid_on.strftime('%d.%m.%Y') }}</div>
+              <p class="stack__meta">{{ '{:,.2f}'.format(payment.amount).replace(',', ' ') }} ₽ · {{ payment.method }}</p>
+              {% if payment.notes %}<p class="stack__text">{{ payment.notes }}</p>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">История появится после первой оплаты — не забудь напомнить об этом родителям.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+
+<section class="panel panel--notifications">
+  <div class="panel__header">
+    <h2>Уведомления</h2>
+    <span class="chip chip--light">Последние события</span>
+  </div>
+  {% if notifications %}
+    <ul class="notification-feed">
+      {% for item in notifications %}
+        <li class="notification-feed__item notification-feed__item--{{ item.tone }}">
+          <div class="notification-feed__icon">{{ item.icon }}</div>
+          <div class="notification-feed__body">
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.body }}</p>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Пока нет новых событий — как только появятся обновления, мы сообщим.</p>
+  {% endif %}
+</section>
+
+{% if library_preview %}
+  <section class="panel panel--library-preview">
+    <div class="panel__header">
+      <h2>Библиотека ОбразОн</h2>
+      <a class="chip" href="{{ url_for('diary.student_materials') }}">Перейти в материалы</a>
+    </div>
+    <div class="library-grid library-grid--compact">
+      {% for item in library_preview %}
+        <article class="material-card material-card--spotlight">
+          <h3>{{ item.title }}</h3>
+          {% if item.description %}<p class="material-card__excerpt">{{ item.description }}</p>{% endif %}
+          <div class="material-card__meta">
+            {% if item.subject_setting %}
+              <span class="chip chip--accent" style="--chip-accent: {{ item.subject_setting.color }}">{{ item.subject_setting.name }}</span>
+            {% else %}
+              <span class="chip chip--light">Общий курс</span>
+            {% endif %}
+          </div>
+          {% if item.url %}
+            <a class="btn btn--ghost" href="{{ item.url }}" target="_blank" rel="noopener">Открыть</a>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+<section class="panel">
+  <div class="panel__header">
+    <h2>Предстоящие уроки</h2>
+    <a class="chip" href="{{ url_for('diary.student_homework') }}">К заданиям</a>
+  </div>
+  {% if upcoming_sessions %}
+    <ul class="timeline">
+      {% for lesson in upcoming_sessions %}
+        <li class="timeline__item">
+          <div class="timeline__date">
+            <span>{{ lesson.date.strftime('%d.%m') }}</span>
+            <small>{{ lesson.start_time.strftime('%H:%M') }}</small>
+          </div>
+          <div class="timeline__content">
+            <h3>{{ assigned_teacher or 'Ваш преподаватель' }}</h3>
+            {% if lesson.topic %}
+              <p class="timeline__topic">{{ lesson.topic }}</p>
+            {% endif %}
+            {% if lesson.homework %}<p class="timeline__homework">Подготовка: {{ lesson.homework }}</p>{% endif %}
+            {% set state = session_states.get(lesson.id) %}
+            <span class="lesson-status lesson-status--{{ state.tone if state else 'upcoming' }}">
+              {{ state.label if state else lesson.status|title }}
+            </span>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Предстоящих занятий нет.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Прошедшие уроки</h2>
+  {% if past_sessions %}
+    <div class="table-wrapper">
+      <table class="table table--compact">
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Тема</th>
+            <th>Домашнее задание</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lesson in past_sessions %}
+            <tr>
+              <td>{{ lesson.date.strftime('%d.%m.%Y') }}</td>
+              <td>{{ lesson.topic }}</td>
+              <td>{% if lesson.homework %}{{ lesson.homework }}{% else %}—{% endif %}</td>
+              <td>{{ lesson.status|title }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Уроков ещё не было — впереди всё самое интересное!</p>
+  {% endif %}
+</section>
+{% endblock %}
